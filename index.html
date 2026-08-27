@@ -39,6 +39,7 @@
     --font-display:'Space Grotesk', sans-serif;
     --font-body:'Inter', sans-serif;
     --font-mono:'IBM Plex Mono', monospace;
+    --font-scale:1;
   }
 
   *{box-sizing:border-box; min-width:0;}
@@ -106,19 +107,19 @@
     background:linear-gradient(135deg, var(--coral-500), var(--coral-400));
     display:grid; place-items:center;
     font-family:var(--font-display); font-weight:700; color:#111;
-    font-size:15px;
+    font-size:calc(15px * var(--font-scale, 1));
   }
   .brand__text{ min-width:0; }
   .brand__text h1{
     font-family:var(--font-display);
-    font-size:16px;
+    font-size:calc(16px * var(--font-scale, 1));
     margin:0;
     letter-spacing:0.01em;
     overflow-wrap:break-word;
   }
   .brand__text p{
     margin:0;
-    font-size:11.5px;
+    font-size:calc(11.5px * var(--font-scale, 1));
     color:var(--sand-200);
     opacity:.8;
     overflow-wrap:break-word;
@@ -148,7 +149,7 @@
     border:none;
     color:var(--sand-100);
     font-family:var(--font-body);
-    font-size:15px;
+    font-size:calc(15px * var(--font-scale, 1));
     height:100%;
   }
   .search-box input::placeholder{ color:var(--sand-200); opacity:.55; }
@@ -197,18 +198,24 @@
   }
 
   .voice-status{
-    font-size:12.5px;
+    font-size:calc(12.5px * var(--font-scale, 1));
     color:var(--coral-400);
     min-height:16px;
     font-family:var(--font-mono);
   }
 
   /* ---------- Toggle de acessibilidade (cadeirantes) ---------- */
+  .a11y-panel{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px 16px;
+  }
   .a11y-toggle{
     display:flex;
     align-items:center;
     gap:9px;
-    font-size:12.5px;
+    font-size:calc(12.5px * var(--font-scale, 1));
     font-weight:600;
     color:var(--sand-100);
     cursor:pointer;
@@ -249,12 +256,40 @@
     outline-offset:2px;
   }
 
+  .font-size-control{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .font-size-control__label{
+    font-size:calc(12.5px * var(--font-scale, 1));
+    font-weight:600;
+    color:var(--sand-100);
+    margin-right:2px;
+  }
+  .fs-btn{
+    flex:none;
+    min-width:32px; height:30px;
+    padding:0 8px;
+    border-radius:9px;
+    border:1px solid var(--line);
+    background:var(--ink-700);
+    color:var(--sand-100);
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  .fs-btn:hover{ background:rgba(244,241,234,0.1); }
+  #font-increase{ font-size:14.5px; }
+  #font-decrease{ font-size:11px; }
+
   /* Badge de acessibilidade nos resultados */
   .a11y-badge{
     display:inline-flex;
     align-items:center;
     gap:4px;
-    font-size:10.5px;
+    font-size:calc(10.5px * var(--font-scale, 1));
     font-weight:700;
     font-family:var(--font-body);
     padding:2px 7px;
@@ -276,7 +311,7 @@
   .chip{
     flex:none;
     font-family:var(--font-body);
-    font-size:13px;
+    font-size:calc(13px * var(--font-scale, 1));
     font-weight:600;
     color:var(--sand-100);
     background:var(--ink-700);
@@ -299,7 +334,7 @@
     background:var(--ink-800);
   }
   .leaflet-control-attribution{
-    font-size:10px !important;
+    font-size:calc(10px * var(--font-scale, 1)) !important;
     background:rgba(16,31,29,0.85) !important;
     color:var(--sand-200) !important;
   }
@@ -361,6 +396,11 @@
     color:#111;
   }
   .fab[hidden]{ display:none !important; }
+  .fab[aria-pressed="true"]{
+    background:var(--teal-500);
+    border-color:var(--teal-500);
+    color:#06110F;
+  }
   .zoom-group{
     display:flex; flex-direction:column;
     border-radius:14px; overflow:hidden;
@@ -379,7 +419,7 @@
     bottom:14px;
     z-index:850;
     font-family:var(--font-mono);
-    font-size:11.5px;
+    font-size:calc(11.5px * var(--font-scale, 1));
     background:rgba(16,31,29,0.85);
     border:1px solid var(--line);
     color:var(--sand-200);
@@ -406,11 +446,11 @@
   }
   .geo-banner.show{ display:flex; }
   .geo-banner svg{ flex:none; margin-top:2px; color:var(--coral-400); }
-  .geo-banner p{ margin:0 0 8px; font-size:13.5px; line-height:1.5; }
+  .geo-banner p{ margin:0 0 8px; font-size:calc(13.5px * var(--font-scale, 1)); line-height:1.5; }
   .geo-banner .actions{ display:flex; gap:8px; flex-wrap:wrap; }
   .btn-small{
     font-family:var(--font-body);
-    font-weight:600; font-size:12.5px;
+    font-weight:600; font-size:calc(12.5px * var(--font-scale, 1));
     padding:8px 12px; border-radius:9px;
     border:1px solid var(--line);
     background:transparent; color:var(--sand-100);
@@ -422,6 +462,101 @@
   .geo-banner button.close{
     margin-left:auto; background:none; border:none; color:var(--sand-200);
     cursor:pointer; padding:2px;
+  }
+
+  /* ---------- Reportar obstáculo ---------- */
+  .report-hint{
+    position:absolute;
+    left:50%; top:14px;
+    transform:translateX(-50%);
+    z-index:900;
+    background:var(--coral-500);
+    color:#111;
+    font-weight:700;
+    font-size:calc(12.5px * var(--font-scale, 1));
+    padding:9px 16px;
+    border-radius:999px;
+    box-shadow:0 6px 20px rgba(0,0,0,.35);
+    display:none;
+    max-width:80vw;
+    text-align:center;
+  }
+  .report-hint.show{ display:block; }
+
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:rgba(11,22,21,0.72);
+    z-index:2000;
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .modal-overlay[hidden]{ display:none; }
+  .modal-card{
+    width:100%; max-width:440px;
+    background:var(--ink-700);
+    border:1px solid var(--line);
+    border-radius:20px 20px 0 0;
+    padding:20px 18px 24px;
+    box-shadow:0 -8px 30px rgba(0,0,0,.4);
+  }
+  @media (min-width:860px){
+    .modal-overlay{ align-items:center; }
+    .modal-card{ border-radius:var(--radius-lg); }
+  }
+  .modal-card h2{
+    font-family:var(--font-display);
+    font-size:calc(17px * var(--font-scale, 1));
+    margin:0 0 14px;
+  }
+  .modal-card label{
+    display:block;
+    font-size:calc(12.5px * var(--font-scale, 1));
+    font-weight:600;
+    margin:12px 0 6px;
+  }
+  .modal-card select, .modal-card textarea{
+    width:100%;
+    background:var(--ink-800);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    color:var(--sand-100);
+    font-family:var(--font-body);
+    font-size:calc(13.5px * var(--font-scale, 1));
+    padding:10px 12px;
+    resize:vertical;
+  }
+  .modal-note{
+    font-size:calc(11.5px * var(--font-scale, 1));
+    color:var(--sand-200);
+    opacity:.85;
+    margin:12px 0 0;
+    line-height:1.5;
+  }
+  .modal-card .actions{ display:flex; gap:10px; margin-top:16px; }
+  .modal-card .actions .btn-small{ flex:1; text-align:center; }
+
+  .obstacle-icon{
+    width:26px; height:26px;
+    display:grid; place-items:center;
+    background:var(--coral-500);
+    border-radius:8px;
+    border:2px solid var(--ink-900);
+    box-shadow:0 2px 8px rgba(0,0,0,.4);
+  }
+  .obstacle-popup h4{ margin:0 0 4px; font-family:var(--font-display); font-size:13.5px; }
+  .obstacle-popup p{ margin:0 0 8px; font-size:12px; }
+
+  /* Reposiciona o botão de acesso do VLibras para o canto inferior esquerdo,
+     evitando sobrepor o fab-stack (zoom/localização/satélite/reportar), que fica à direita. */
+  div[vw] .vw-access-button{
+    right:auto !important;
+    left:16px !important;
+    bottom:16px !important;
+  }
+  div[vw] .vw-plugin-top-wrapper{
+    right:auto !important;
+    left:16px !important;
   }
 
   /* ---------- Bottom sheet (resultados) ---------- */
@@ -450,7 +585,7 @@
     padding:4px 16px 10px;
     border-bottom:1px solid var(--line);
   }
-  .sheet__head h2{ font-family:var(--font-display); font-size:14px; margin:0; }
+  .sheet__head h2{ font-family:var(--font-display); font-size:calc(14px * var(--font-scale, 1)); margin:0; }
   .sheet__head-actions{ display:flex; align-items:center; gap:2px; flex:none; }
   .sheet__list{
     overflow-y:auto;
@@ -477,10 +612,10 @@
     display:grid; place-items:center;
     margin-top:2px;
   }
-  .result-item .txt strong{ display:block; font-size:14px; font-weight:600; }
-  .result-item .txt span{ display:block; font-size:12px; color:var(--sand-200); opacity:.75; margin-top:2px; }
-  .result-empty{ padding:26px 16px; text-align:center; color:var(--sand-200); font-size:13.5px; }
-  .result-empty strong{ display:block; color:var(--sand-100); margin-bottom:4px; font-family:var(--font-display); font-size:15px;}
+  .result-item .txt strong{ display:block; font-size:calc(14px * var(--font-scale, 1)); font-weight:600; }
+  .result-item .txt span{ display:block; font-size:calc(12px * var(--font-scale, 1)); color:var(--sand-200); opacity:.75; margin-top:2px; }
+  .result-empty{ padding:26px 16px; text-align:center; color:var(--sand-200); font-size:calc(13.5px * var(--font-scale, 1)); }
+  .result-empty strong{ display:block; color:var(--sand-100); margin-bottom:4px; font-family:var(--font-display); font-size:calc(15px * var(--font-scale, 1));}
 
   /* ---------- Painel de local selecionado ---------- */
   .place-card{
@@ -488,11 +623,11 @@
   }
   .place-card h3{
     font-family:var(--font-display);
-    font-size:17px; margin:0 0 4px;
+    font-size:calc(17px * var(--font-scale, 1)); margin:0 0 4px;
   }
-  .place-card .addr{ font-size:13px; color:var(--sand-200); margin:0 0 14px; line-height:1.5; }
+  .place-card .addr{ font-size:calc(13px * var(--font-scale, 1)); color:var(--sand-200); margin:0 0 14px; line-height:1.5; }
   .place-card .coords{
-    font-family:var(--font-mono); font-size:12px; color:var(--sand-200);
+    font-family:var(--font-mono); font-size:calc(12px * var(--font-scale, 1)); color:var(--sand-200);
     background:var(--ink-800); border-radius:9px; padding:8px 10px;
     margin-bottom:14px;
   }
@@ -509,42 +644,42 @@
   @media (max-width:700px){
     .topbar{ padding:10px 10px 18px; gap:9px; }
     .brand{ gap:8px; }
-    .brand__mark{ width:26px; height:26px; border-radius:7px; font-size:12px; }
-    .brand__text h1{ font-size:13px; }
-    .brand__text p{ font-size:9.5px; }
+    .brand__mark{ width:26px; height:26px; border-radius:7px; font-size:calc(12px * var(--font-scale, 1)); }
+    .brand__text h1{ font-size:calc(13px * var(--font-scale, 1)); }
+    .brand__text p{ font-size:calc(9.5px * var(--font-scale, 1)); }
     .search-row{ gap:6px; }
     .search-box{ height:42px; border-radius:11px; padding-left:10px; gap:6px; }
     .search-box svg{ width:15px; height:15px; }
-    .search-box input{ font-size:13.5px; }
+    .search-box input{ font-size:calc(13.5px * var(--font-scale, 1)); }
     .icon-btn{ width:32px; height:32px; border-radius:9px; }
     .icon-btn svg{ width:15px; height:15px; }
     .mic-btn{ width:42px; height:42px; border-radius:11px; }
     .mic-btn svg{ width:16px; height:16px; }
-    .voice-status{ font-size:11px; }
+    .voice-status{ font-size:calc(11px * var(--font-scale, 1)); }
     .chips{ gap:6px; }
-    .chip{ font-size:11.5px; padding:6px 11px; }
+    .chip{ font-size:calc(11.5px * var(--font-scale, 1)); padding:6px 11px; }
 
     .fab{ width:38px; height:38px; border-radius:11px; }
     .fab svg{ width:15px; height:15px; }
     .fab-stack{ right:10px; bottom:10px; gap:8px; }
     .zoom-group{ border-radius:11px; }
 
-    .scale-readout{ left:10px; bottom:10px; font-size:10px; padding:5px 8px; max-width:52vw; }
+    .scale-readout{ left:10px; bottom:10px; font-size:calc(10px * var(--font-scale, 1)); padding:5px 8px; max-width:52vw; }
 
     .geo-banner{ top:10px; left:10px; right:10px; padding:11px; gap:8px; }
-    .geo-banner p{ font-size:12px; }
-    .btn-small{ font-size:11.5px; padding:7px 10px; }
+    .geo-banner p{ font-size:calc(12px * var(--font-scale, 1)); }
+    .btn-small{ font-size:calc(11.5px * var(--font-scale, 1)); padding:7px 10px; }
 
     .sheet__head{ padding:2px 12px 8px; }
-    .sheet__head h2{ font-size:12.5px; }
+    .sheet__head h2{ font-size:calc(12.5px * var(--font-scale, 1)); }
     .result-item{ padding:9px 8px; gap:9px; }
     .result-item .dot{ width:24px; height:24px; border-radius:7px; }
-    .result-item .txt strong{ font-size:12.5px; }
-    .result-item .txt span{ font-size:10.5px; }
+    .result-item .txt strong{ font-size:calc(12.5px * var(--font-scale, 1)); }
+    .result-item .txt span{ font-size:calc(10.5px * var(--font-scale, 1)); }
     .place-card{ padding:10px 12px 16px; }
-    .place-card h3{ font-size:14.5px; }
-    .place-card .addr{ font-size:11.5px; }
-    .place-card .coords{ font-size:10.5px; }
+    .place-card h3{ font-size:calc(14.5px * var(--font-scale, 1)); }
+    .place-card .addr{ font-size:calc(11.5px * var(--font-scale, 1)); }
+    .place-card .coords{ font-size:calc(10.5px * var(--font-scale, 1)); }
   }
 
   /* ---------- Responsivo desktop ---------- */
@@ -610,17 +745,26 @@
       <button class="chip" data-tags="wheelchair=yes" data-singular="Local acessível">♿ Acessíveis</button>
     </div>
 
-    <label class="a11y-toggle" for="wheelchair-toggle">
-      <input type="checkbox" id="wheelchair-toggle">
-      <span class="switch" aria-hidden="true"></span>
-      <span>Mostrar só locais com acesso para cadeirantes</span>
-    </label>
+    <div class="a11y-panel">
+      <label class="a11y-toggle" for="wheelchair-toggle">
+        <input type="checkbox" id="wheelchair-toggle">
+        <span class="switch" aria-hidden="true"></span>
+        <span>Mostrar só locais com acesso para cadeirantes</span>
+      </label>
 
-    <label class="a11y-toggle" for="tts-toggle" id="tts-toggle-label">
-      <input type="checkbox" id="tts-toggle">
-      <span class="switch" aria-hidden="true"></span>
-      <span>🔊 Ler resultados em voz alta</span>
-    </label>
+      <label class="a11y-toggle" for="tts-toggle" id="tts-toggle-label">
+        <input type="checkbox" id="tts-toggle">
+        <span class="switch" aria-hidden="true"></span>
+        <span>🔊 Ler resultados em voz alta</span>
+      </label>
+
+      <div class="font-size-control" role="group" aria-label="Tamanho do texto">
+        <span class="font-size-control__label">Tamanho do texto</span>
+        <button type="button" class="fs-btn" id="font-decrease" aria-label="Diminuir tamanho do texto">A-</button>
+        <button type="button" class="fs-btn" id="font-reset" aria-label="Tamanho de texto padrão">A</button>
+        <button type="button" class="fs-btn" id="font-increase" aria-label="Aumentar tamanho do texto">A+</button>
+      </div>
+    </div>
   </header>
 
   <main class="map-wrap">
@@ -651,12 +795,42 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
       </div>
+      <button class="fab" id="satellite-btn" aria-pressed="false" aria-label="Ver mapa por satélite">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 8l6-5 12 10-6 5L3 8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3l6 5M8 15l-3 6M13 13l4 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
       <button class="fab fab--primary" id="locate-btn" aria-label="Ir para minha localização">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
       <button class="fab" id="install-btn" aria-label="Instalar aplicativo na tela inicial" hidden>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
+      <button class="fab" id="report-btn" aria-pressed="false" aria-label="Reportar obstáculo urbano no mapa">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4l9 16H3L12 4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <p class="report-hint" id="report-hint" role="status">Toque em um ponto do mapa para marcar o obstáculo.</p>
+
+    <div class="modal-overlay" id="obstacle-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="obstacle-modal-title">
+        <h2 id="obstacle-modal-title">Reportar obstáculo</h2>
+        <label for="obstacle-type">Tipo de obstáculo</label>
+        <select id="obstacle-type">
+          <option value="Buraco na via">Buraco na via</option>
+          <option value="Calçada quebrada">Calçada quebrada ou irregular</option>
+          <option value="Obra ou bloqueio">Obra ou bloqueio na via</option>
+          <option value="Fiação ou poste baixo">Fiação ou poste no caminho</option>
+          <option value="Sem rampa de acesso">Sem rampa de acesso</option>
+          <option value="Outro">Outro</option>
+        </select>
+        <label for="obstacle-note">Descrição (opcional)</label>
+        <textarea id="obstacle-note" rows="3" placeholder="Ex: buraco grande na calçada, difícil de desviar com cadeira de rodas"></textarea>
+        <p class="modal-note">Este aviso fica salvo apenas neste navegador/aparelho — ainda não é compartilhado com outras pessoas.</p>
+        <div class="actions">
+          <button class="btn-small primary" id="obstacle-save">Salvar obstáculo</button>
+          <button class="btn-small" id="obstacle-cancel">Cancelar</button>
+        </div>
+      </div>
     </div>
 
     <section class="sheet" id="sheet" aria-label="Resultados da busca">
@@ -685,6 +859,18 @@
 
 <div id="live-region" class="sr-only" aria-live="polite"></div>
 
+<!-- VLibras: tradução automática do conteúdo do site para Libras -->
+<div vw class="enabled">
+  <div vw-access-button class="active"></div>
+  <div vw-plugin-wrapper>
+    <div class="vw-plugin-top-wrapper"></div>
+  </div>
+</div>
+<script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+<script>
+  new window.VLibras.Widget('https://vlibras.gov.br/app');
+</script>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function(){
@@ -702,10 +888,129 @@
     maxZoom:19
   }).setView(BRASIL_CENTER, 4);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  var streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom:19,
     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores do OpenStreetMap</a>'
   }).addTo(map);
+
+  var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom:19,
+    attribution:'Imagens de satélite &copy; Esri, Maxar, Earthstar Geographics'
+  });
+
+  var showingSatellite = false;
+  function toggleSatellite(){
+    if(showingSatellite){
+      map.removeLayer(satelliteLayer);
+      map.addLayer(streetLayer);
+    } else {
+      map.removeLayer(streetLayer);
+      map.addLayer(satelliteLayer);
+    }
+    showingSatellite = !showingSatellite;
+    var btn = document.getElementById('satellite-btn');
+    btn.setAttribute('aria-pressed', String(showingSatellite));
+    btn.setAttribute('aria-label', showingSatellite ? 'Voltar para o mapa padrão' : 'Ver mapa por satélite');
+    announce(showingSatellite ? 'Visualização por satélite ativada.' : 'Visualização de mapa padrão ativada.');
+  }
+  document.getElementById('satellite-btn').addEventListener('click', toggleSatellite);
+
+  // ---------- Reportar obstáculos urbanos ----------
+  var OBSTACLES_KEY = 'ra_obstaculos';
+  var obstaclesLayer = L.layerGroup().addTo(map);
+  var reportBtn = document.getElementById('report-btn');
+  var reportHint = document.getElementById('report-hint');
+  var obstacleModal = document.getElementById('obstacle-modal');
+  var obstacleTypeSelect = document.getElementById('obstacle-type');
+  var obstacleNoteInput = document.getElementById('obstacle-note');
+  var reportMode = false;
+  var pendingLatLng = null;
+
+  function loadObstacles(){
+    try{
+      return JSON.parse(localStorage.getItem(OBSTACLES_KEY) || '[]');
+    }catch(e){ return []; }
+  }
+  function saveObstacles(list){
+    try{ localStorage.setItem(OBSTACLES_KEY, JSON.stringify(list)); }catch(e){}
+  }
+
+  var obstacleIcon = L.divIcon({
+    className:'',
+    html:'<div class="obstacle-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4l9 16H3L12 4z" stroke="#111" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4M12 17h.01" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg></div>',
+    iconSize:[26,26],
+    iconAnchor:[13,13]
+  });
+
+  function addObstacleMarker(obstacle){
+    var marker = L.marker([obstacle.lat, obstacle.lon], { icon: obstacleIcon }).addTo(obstaclesLayer);
+    var popupEl = document.createElement('div');
+    popupEl.className = 'obstacle-popup';
+    popupEl.innerHTML =
+      '<h4>⚠ ' + obstacle.type + '</h4>' +
+      (obstacle.note ? '<p>' + obstacle.note + '</p>' : '') +
+      '<p style="opacity:.7">Reportado em ' + obstacle.date + '</p>';
+    var removeBtn = document.createElement('button');
+    removeBtn.className = 'btn-small';
+    removeBtn.textContent = 'Remover aviso';
+    removeBtn.addEventListener('click', function(){
+      obstaclesLayer.removeLayer(marker);
+      var list = loadObstacles().filter(function(o){ return o.id !== obstacle.id; });
+      saveObstacles(list);
+      announce('Aviso de obstáculo removido.');
+      map.closePopup();
+    });
+    popupEl.appendChild(removeBtn);
+    marker.bindPopup(popupEl);
+  }
+
+  loadObstacles().forEach(addObstacleMarker);
+
+  function setReportMode(on){
+    reportMode = on;
+    reportBtn.setAttribute('aria-pressed', String(on));
+    reportHint.classList.toggle('show', on);
+    document.getElementById('map').style.cursor = on ? 'crosshair' : '';
+  }
+
+  reportBtn.addEventListener('click', function(){
+    setReportMode(!reportMode);
+    if(reportMode) announce('Modo de reportar obstáculo ativado. Toque em um ponto do mapa.');
+  });
+
+  map.on('click', function(e){
+    if(!reportMode) return;
+    pendingLatLng = e.latlng;
+    setReportMode(false);
+    obstacleNoteInput.value = '';
+    obstacleTypeSelect.selectedIndex = 0;
+    obstacleModal.hidden = false;
+    obstacleTypeSelect.focus();
+  });
+
+  document.getElementById('obstacle-cancel').addEventListener('click', function(){
+    obstacleModal.hidden = true;
+    pendingLatLng = null;
+  });
+
+  document.getElementById('obstacle-save').addEventListener('click', function(){
+    if(!pendingLatLng) { obstacleModal.hidden = true; return; }
+    var obstacle = {
+      id: 'obs-' + Date.now(),
+      lat: pendingLatLng.lat,
+      lon: pendingLatLng.lng,
+      type: obstacleTypeSelect.value,
+      note: obstacleNoteInput.value.trim(),
+      date: new Date().toLocaleDateString('pt-BR')
+    };
+    var list = loadObstacles();
+    list.push(obstacle);
+    saveObstacles(list);
+    addObstacleMarker(obstacle);
+    obstacleModal.hidden = true;
+    pendingLatLng = null;
+    announce('Obstáculo salvo no mapa.');
+  });
 
   // Anima suavemente do Brasil até Paulista ao carregar, situando o usuário geograficamente.
   window.setTimeout(function(){
@@ -717,6 +1022,32 @@
     region.textContent = '';
     window.setTimeout(function(){ region.textContent = msg; }, 60);
   }
+
+  // ---------- Controle de tamanho de fonte (A- / A+) ----------
+  var FONT_SCALE_MIN = 0.85, FONT_SCALE_MAX = 1.45, FONT_SCALE_STEP = 0.1;
+  var fontScale = parseFloat(localStorage.getItem('ra_font_scale')) || 1;
+
+  function applyFontScale(){
+    document.documentElement.style.setProperty('--font-scale', fontScale.toFixed(2));
+    try{ localStorage.setItem('ra_font_scale', fontScale.toFixed(2)); }catch(e){}
+  }
+  applyFontScale();
+
+  document.getElementById('font-increase').addEventListener('click', function(){
+    fontScale = Math.min(FONT_SCALE_MAX, +(fontScale + FONT_SCALE_STEP).toFixed(2));
+    applyFontScale();
+    announce('Tamanho do texto aumentado.');
+  });
+  document.getElementById('font-decrease').addEventListener('click', function(){
+    fontScale = Math.max(FONT_SCALE_MIN, +(fontScale - FONT_SCALE_STEP).toFixed(2));
+    applyFontScale();
+    announce('Tamanho do texto diminuído.');
+  });
+  document.getElementById('font-reset').addEventListener('click', function(){
+    fontScale = 1;
+    applyFontScale();
+    announce('Tamanho do texto padrão restaurado.');
+  });
 
   // ---------- Leitura do centro do mapa (coordenadas) ----------
   var centerCoords = document.getElementById('center-coords');
