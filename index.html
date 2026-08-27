@@ -451,6 +451,7 @@
     border-bottom:1px solid var(--line);
   }
   .sheet__head h2{ font-family:var(--font-display); font-size:14px; margin:0; }
+  .sheet__head-actions{ display:flex; align-items:center; gap:2px; flex:none; }
   .sheet__list{
     overflow-y:auto;
     padding:6px 8px 16px;
@@ -614,6 +615,12 @@
       <span class="switch" aria-hidden="true"></span>
       <span>Mostrar só locais com acesso para cadeirantes</span>
     </label>
+
+    <label class="a11y-toggle" for="tts-toggle" id="tts-toggle-label">
+      <input type="checkbox" id="tts-toggle">
+      <span class="switch" aria-hidden="true"></span>
+      <span>🔊 Ler resultados em voz alta</span>
+    </label>
   </header>
 
   <main class="map-wrap">
@@ -656,9 +663,14 @@
       <div class="sheet__handle" aria-hidden="true"></div>
       <div class="sheet__head">
         <h2 id="sheet-title">Buscar um local</h2>
-        <button class="icon-btn" id="sheet-close" aria-label="Fechar painel">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        </button>
+        <div class="sheet__head-actions">
+          <button class="icon-btn" id="sheet-listen" aria-label="Ouvir resultado em voz alta">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <button class="icon-btn" id="sheet-close" aria-label="Fechar painel">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
       </div>
       <div class="sheet__list" id="sheet-body">
         <div class="result-empty">
@@ -836,7 +848,7 @@
   var searchForm = document.getElementById('search-form');
 
   function openSheet(){ sheet.classList.add('open'); }
-  function closeSheet(){ sheet.classList.remove('open'); }
+  function closeSheet(){ sheet.classList.remove('open'); if(ttsSupported) window.speechSynthesis.cancel(); }
   document.getElementById('sheet-close').addEventListener('click', closeSheet);
 
   // ---------- Filtro de acessibilidade (cadeirantes) ----------
@@ -852,6 +864,49 @@
     announce(wheelchairToggle.checked ? 'Mostrando apenas locais com acesso para cadeirantes.' : 'Filtro de acessibilidade desativado.');
     if(lastQuery) lastQuery();
   });
+
+  // ---------- Leitura em voz alta (Text-to-Speech) ----------
+  var ttsToggle = document.getElementById('tts-toggle');
+  var sheetListenBtn = document.getElementById('sheet-listen');
+  var ttsSupported = 'speechSynthesis' in window;
+  var currentSpeechText = '';
+
+  if(!ttsSupported){
+    document.getElementById('tts-toggle-label').style.display = 'none';
+    sheetListenBtn.style.display = 'none';
+  }
+
+  function speak(text){
+    if(!ttsSupported || !text) return;
+    window.speechSynthesis.cancel();
+    var utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'pt-BR';
+    window.speechSynthesis.speak(utter);
+  }
+
+  // Guarda o texto atual (lista de resultados ou local selecionado) para poder
+  // ser ouvido a qualquer momento pelo botão "ouvir", e fala automaticamente
+  // quando o interruptor de leitura em voz alta está ativado.
+  function setSpeech(text){
+    currentSpeechText = text;
+    if(ttsToggle.checked) speak(text);
+  }
+
+  if(ttsSupported){
+    ttsToggle.addEventListener('change', function(){
+      window.speechSynthesis.cancel();
+      if(ttsToggle.checked){
+        announce('Leitura em voz alta ativada.');
+        if(currentSpeechText) speak(currentSpeechText);
+      } else {
+        announce('Leitura em voz alta desativada.');
+      }
+    });
+
+    sheetListenBtn.addEventListener('click', function(){
+      speak(currentSpeechText || 'Nenhum resultado para ouvir no momento.');
+    });
+  }
 
   var searchMarkers = L.layerGroup().addTo(map);
   var bbox = {
@@ -965,9 +1020,17 @@
     if(!items || !items.length){
       renderEmpty(emptyMsg, emptySub);
       announce('Nenhum resultado encontrado.');
+      setSpeech(emptyMsg + (emptySub ? '. ' + emptySub : ''));
       return;
     }
     announce(items.length + ' resultados encontrados.');
+    var speechParts = items.slice(0, 6).map(function(it){
+      var wLabel = wheelchairLabel(it.wheelchair);
+      return it.title + (wLabel ? ', ' + wLabel : '');
+    });
+    var speechText = items.length + (items.length === 1 ? ' resultado encontrado. ' : ' resultados encontrados. ') + speechParts.join('. ') + '.'
+      + (items.length > 6 ? ' Role a lista para ver os demais.' : '');
+    setSpeech(speechText);
     sheetBody.innerHTML = '';
     items.forEach(function(item){
       var btn = document.createElement('button');
@@ -1019,6 +1082,7 @@
       }
     });
     announce('Local selecionado: ' + item.title);
+    setSpeech(item.title + '. ' + item.subtitle + (wLabelSel ? '. ' + wLabelSel + '.' : '.'));
   }
 
   searchForm.addEventListener('submit', function(e){
