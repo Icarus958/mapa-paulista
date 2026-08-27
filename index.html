@@ -525,13 +525,15 @@
     <p class="voice-status" id="voice-status" aria-live="polite"></p>
 
     <div class="chips" role="group" aria-label="Filtrar por categoria">
-      <button class="chip" data-query="farmácia">Farmácias</button>
-      <button class="chip" data-query="hospital">Saúde</button>
-      <button class="chip" data-query="ponto de ônibus">Ônibus</button>
-      <button class="chip" data-query="praça">Praças</button>
-      <button class="chip" data-query="escola">Escolas</button>
-      <button class="chip" data-query="mercado">Mercados</button>
-      <button class="chip" data-query="banco">Bancos</button>
+      <button class="chip" data-tags="shop=supermarket|shop=convenience|amenity=marketplace" data-singular="Mercado">Mercados</button>
+      <button class="chip" data-tags="shop=pharmacy" data-singular="Farmácia">Farmácias</button>
+      <button class="chip" data-tags="amenity=hospital|amenity=clinic|amenity=doctors" data-singular="Unidade de saúde">Saúde</button>
+      <button class="chip" data-tags="shop=bakery" data-singular="Padaria">Padarias</button>
+      <button class="chip" data-tags="amenity=fuel" data-singular="Posto de combustível">Postos</button>
+      <button class="chip" data-tags="highway=bus_stop" data-singular="Ponto de ônibus">Ônibus</button>
+      <button class="chip" data-tags="leisure=park|place=square" data-singular="Praça">Praças</button>
+      <button class="chip" data-tags="amenity=school" data-singular="Escola">Escolas</button>
+      <button class="chip" data-tags="amenity=bank" data-singular="Banco">Bancos</button>
     </div>
   </header>
 
@@ -744,7 +746,7 @@
   // Pede a permissão de localização assim que a página carrega, como solicitado.
   window.setTimeout(startWatching, 1200);
 
-  // ---------- Busca de lugares (Nominatim / OpenStreetMap) ----------
+  // ---------- Busca de lugares (Nominatim para texto/voz, Overpass para categorias) ----------
   var sheet = document.getElementById('sheet');
   var sheetBody = document.getElementById('sheet-body');
   var sheetTitle = document.getElementById('sheet-title');
@@ -756,14 +758,18 @@
   document.getElementById('sheet-close').addEventListener('click', closeSheet);
 
   var searchMarkers = L.layerGroup().addTo(map);
+  var bbox = {
+    south: PAULISTA_BOUNDS.getSouth(), west: PAULISTA_BOUNDS.getWest(),
+    north: PAULISTA_BOUNDS.getNorth(), east: PAULISTA_BOUNDS.getEast()
+  };
 
   function renderEmpty(msg, sub){
     sheetBody.innerHTML =
       '<div class="result-empty"><strong>' + msg + '</strong>' + (sub || '') + '</div>';
   }
 
-  function renderLoading(){
-    sheetBody.innerHTML = '<div class="result-empty">Buscando em Paulista…</div>';
+  function renderLoading(text){
+    sheetBody.innerHTML = '<div class="result-empty">' + (text || 'Buscando em Paulista…') + '</div>';
   }
 
   function shortLabel(item){
@@ -775,45 +781,90 @@
     return parts.length ? parts.join(', ') : item.display_name;
   }
 
+  // Converte um resultado do Nominatim (busca por texto/voz) para o formato comum da lista.
+  function fromNominatim(item){
+    return { lat: parseFloat(item.lat), lon: parseFloat(item.lon), title: shortLabel(item), subtitle: item.display_name };
+  }
+
+  // Converte um elemento do Overpass (busca por categoria) para o formato comum da lista.
+  function fromOverpassElement(el, fallbackTitle){
+    var t = el.tags || {};
+    var lat = el.lat !== undefined ? el.lat : (el.center ? el.center.lat : null);
+    var lon = el.lon !== undefined ? el.lon : (el.center ? el.center.lon : null);
+    var addrParts = [];
+    if(t['addr:street']){
+      addrParts.push(t['addr:street'] + (t['addr:housenumber'] ? ', ' + t['addr:housenumber'] : ''));
+    }
+    if(t['addr:suburb']) addrParts.push(t['addr:suburb']);
+    var subtitle = addrParts.length ? addrParts.join(' · ') : 'Paulista, PE';
+    return { lat: lat, lon: lon, title: t.name || t.brand || fallbackTitle, subtitle: subtitle };
+  }
+
+  // ---------- Busca livre (texto digitado ou por voz) ----------
   function runSearch(query){
     if(!query || !query.trim()) return;
     openSheet();
     renderLoading();
     sheetTitle.textContent = 'Resultados para "' + query + '"';
 
-    var vb = PAULISTA_BOUNDS.toBBoxString(); // minlon,minlat,maxlon,maxlat -> Nominatim usa left,top,right,bottom
-    var bounds = PAULISTA_BOUNDS;
-    var viewbox = bounds.getWest() + ',' + bounds.getNorth() + ',' + bounds.getEast() + ',' + bounds.getSouth();
-
-    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=10&countrycodes=br'
+    var viewbox = bbox.west + ',' + bbox.north + ',' + bbox.east + ',' + bbox.south;
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=12&countrycodes=br'
       + '&viewbox=' + encodeURIComponent(viewbox) + '&bounded=1'
-      + '&q=' + encodeURIComponent(query + ', Paulista, Pernambuco');
+      + '&q=' + encodeURIComponent(query);
 
     fetch(url, { headers: { 'Accept-Language':'pt-BR' } })
       .then(function(r){ return r.json(); })
-      .then(function(results){ renderResults(results, query); })
+      .then(function(results){ renderResults(results.map(fromNominatim), 'Nada encontrado para "' + query + '"', 'Tente o nome de uma rua, bairro, comércio ou ponto de referência próximo.'); })
       .catch(function(){
         renderEmpty('Não foi possível buscar agora.', 'Verifique sua conexão com a internet e tente novamente.');
       });
   }
 
-  function renderResults(results, query){
+  // ---------- Busca por categoria (chips), via Overpass API ----------
+  function runCategorySearch(tagsSpec, label, singular){
+    openSheet();
+    renderLoading('Buscando ' + label.toLowerCase() + ' em Paulista…');
+    sheetTitle.textContent = label + ' em Paulista';
+
+    var bboxStr = bbox.south + ',' + bbox.west + ',' + bbox.north + ',' + bbox.east;
+    var clauses = tagsSpec.split('|').map(function(pair){
+      var kv = pair.split('=');
+      return 'node["' + kv[0] + '"="' + kv[1] + '"](' + bboxStr + ');' +
+             'way["' + kv[0] + '"="' + kv[1] + '"](' + bboxStr + ');';
+    }).join('');
+    var query = '[out:json][timeout:25];(' + clauses + ');out center 80;';
+    var url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var items = (data.elements || [])
+          .map(function(el){ return fromOverpassElement(el, singular); })
+          .filter(function(it){ return it.lat !== null && it.lon !== null; });
+        renderResults(items, 'Nenhum(a) ' + label.toLowerCase() + ' encontrado(a) nesta área.', 'A base do OpenStreetMap pode não ter todos os locais cadastrados ainda.');
+      })
+      .catch(function(){
+        renderEmpty('Não foi possível buscar agora.', 'Verifique sua conexão com a internet e tente novamente.');
+      });
+  }
+
+  function renderResults(items, emptyMsg, emptySub){
     searchMarkers.clearLayers();
-    if(!results || !results.length){
-      renderEmpty('Nada encontrado para "' + query + '"', 'Tente o nome de uma rua, bairro ou ponto de referência próximo.');
+    if(!items || !items.length){
+      renderEmpty(emptyMsg, emptySub);
       announce('Nenhum resultado encontrado.');
       return;
     }
-    announce(results.length + ' resultados encontrados.');
+    announce(items.length + ' resultados encontrados.');
     sheetBody.innerHTML = '';
-    results.forEach(function(item){
+    items.forEach(function(item){
       var btn = document.createElement('button');
       btn.className = 'result-item';
       btn.innerHTML =
         '<span class="dot" aria-hidden="true">' +
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="#F4F1EA" stroke-width="2"/></svg>' +
         '</span>' +
-        '<span class="txt"><strong>' + shortLabel(item) + '</strong><span>' + item.display_name + '</span></span>';
+        '<span class="txt"><strong>' + item.title + '</strong><span>' + item.subtitle + '</span></span>';
       btn.addEventListener('click', function(){ selectResult(item); });
       sheetBody.appendChild(btn);
 
@@ -821,14 +872,16 @@
     });
   }
 
+  var lastQuery = null; // guarda a última busca (texto ou categoria) para o botão "voltar"
+
   function selectResult(item){
-    var lat = parseFloat(item.lat), lon = parseFloat(item.lon);
+    var lat = item.lat, lon = item.lon;
     map.flyTo([lat, lon], 18, {duration:1.2});
-    sheetTitle.textContent = shortLabel(item);
+    sheetTitle.textContent = item.title;
     sheetBody.innerHTML =
       '<div class="place-card">' +
-        '<h3>' + shortLabel(item) + '</h3>' +
-        '<p class="addr">' + item.display_name + '</p>' +
+        '<h3>' + item.title + '</h3>' +
+        '<p class="addr">' + item.subtitle + '</p>' +
         '<p class="coords">' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</p>' +
         '<div class="actions">' +
           '<button class="btn-small primary" id="route-here">Traçar rota até aqui</button>' +
@@ -837,7 +890,7 @@
       '</div>';
 
     document.getElementById('back-results').addEventListener('click', function(){
-      runSearch(searchInput.value);
+      if(lastQuery) lastQuery();
     });
     document.getElementById('route-here').addEventListener('click', function(){
       if(meMarker){
@@ -848,11 +901,13 @@
         showGeoBanner('Ative sua localização para calcular a rota até este local.');
       }
     });
-    announce('Local selecionado: ' + shortLabel(item));
+    announce('Local selecionado: ' + item.title);
   }
 
   searchForm.addEventListener('submit', function(e){
     e.preventDefault();
+    document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('active'); });
+    lastQuery = function(){ runSearch(searchInput.value); };
     runSearch(searchInput.value);
   });
 
@@ -860,10 +915,15 @@
     chip.addEventListener('click', function(){
       document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('active'); });
       chip.classList.add('active');
-      searchInput.value = chip.dataset.query;
-      runSearch(chip.dataset.query);
+      var label = chip.textContent.trim();
+      var tagsSpec = chip.dataset.tags;
+      var singular = chip.dataset.singular;
+      searchInput.value = '';
+      lastQuery = function(){ runCategorySearch(tagsSpec, label, singular); };
+      runCategorySearch(tagsSpec, label, singular);
     });
   });
+
 
   // ---------- Busca por voz (Web Speech API) ----------
   var micBtn = document.getElementById('mic-btn');
@@ -891,6 +951,8 @@
       searchInput.value = transcript;
       voiceStatus.textContent = '"' + transcript + '"';
       if(event.results[0].isFinal){
+        document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('active'); });
+        lastQuery = function(){ runSearch(transcript); };
         runSearch(transcript);
       }
     };
