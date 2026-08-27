@@ -662,11 +662,11 @@
     var latlng = [lat, lng];
     if(!meMarker){
       meMarker = L.marker(latlng, {icon:meIcon, zIndexOffset:1000, keyboard:false}).addTo(map);
-      meMarker.bindPopup('Você está aqui');
     } else {
       meMarker.setLatLng(latlng);
     }
     if(accuracy){
+      meMarker.bindPopup('Você está aqui · precisão de ' + Math.round(accuracy) + ' m');
       if(!accuracyCircle){
         accuracyCircle = L.circle(latlng, {radius:accuracy, color:'#F2542D', weight:1, fillColor:'#F2542D', fillOpacity:0.08});
         accuracyCircle.addTo(map);
@@ -677,29 +677,59 @@
     }
   }
 
+  var bestAccuracy = null;   // melhor (menor) precisão em metros já obtida nesta sessão
+  var firstFixCentered = false;
+
+  function handleFix(pos, isFirstFix){
+    var lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
+    placeMe(lat, lng, acc);
+
+    var isImprovement = (bestAccuracy === null) || (acc < bestAccuracy);
+    if(isImprovement) bestAccuracy = acc;
+
+    // Só recentraliza automaticamente na primeira leitura, ou quando a leitura for
+    // uma melhora real de precisão — evita "pular" o mapa para leituras piores.
+    if(isFirstFix || (isImprovement && !firstFixCentered)){
+      map.flyTo([lat, lng], 17, {duration:1.2});
+    }
+
+    if(acc > 100){
+      showGeoBanner('Localização encontrada, mas com baixa precisão (cerca de ' + Math.round(acc) + ' m). Para melhorar: ative o modo de "Alta precisão" no GPS do aparelho, saia de locais fechados e aguarde alguns segundos.');
+    } else if(isFirstFix){
+      hideGeoBanner();
+      announce('Localização encontrada com precisão de ' + Math.round(acc) + ' metros.');
+    }
+    firstFixCentered = true;
+  }
+
   function startWatching(){
     if(!('geolocation' in navigator)){
       showGeoBanner('Este navegador não oferece suporte a localização. Use a busca para encontrar endereços manualmente.');
       return;
     }
     hideGeoBanner();
+    bestAccuracy = null;
+    firstFixCentered = false;
+
+    // maximumAge:0 força uma leitura nova (não usa cache) e enableHighAccuracy
+    // pede ao aparelho para usar o GPS real em vez de localização por rede/Wi-Fi.
     navigator.geolocation.getCurrentPosition(function(pos){
-      placeMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-      map.flyTo([pos.coords.latitude, pos.coords.longitude], 17, {duration:1.4});
-      announce('Localização encontrada. Mapa centralizado na sua posição atual.');
-    }, onGeoError, {enableHighAccuracy:true, timeout:10000});
+      handleFix(pos, true);
+    }, onGeoError, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
 
     if(watchId !== null) navigator.geolocation.clearWatch(watchId);
     watchId = navigator.geolocation.watchPosition(function(pos){
-      placeMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-    }, function(){ /* ignora erros silenciosos do watch contínuo */ }, {enableHighAccuracy:true, maximumAge:5000});
+      handleFix(pos, false);
+    }, function(){ /* ignora erros silenciosos do watch contínuo */ }, {enableHighAccuracy:true, maximumAge:0, timeout:20000});
   }
 
   function onGeoError(err){
     if(err.code === err.PERMISSION_DENIED){
       showGeoBanner('A permissão de localização foi negada. Para se localizar no mapa, ative a localização nas configurações do navegador e toque em "Ativar localização" novamente.');
+    } else if(err.code === err.TIMEOUT){
+      showGeoBanner('O GPS está demorando para responder. Vá para um local aberto (longe de paredes e prédios altos) e tente novamente.');
     } else {
-      showGeoBanner('Não foi possível obter sua localização agora. Verifique o GPS do aparelho e tente novamente.');
+      showGeoBanner('Não foi possível obter sua localização agora. Verifique se o GPS do aparelho está ativado e tente novamente.');
     }
   }
 
