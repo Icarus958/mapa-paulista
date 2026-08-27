@@ -6,6 +6,16 @@
 <title>Rota Acessível Paulista — Mapa de mobilidade urbana</title>
 <meta name="description" content="Mapa interativo de acessibilidade e mobilidade da cidade de Paulista (PE): sua localização em tempo real, busca de ruas, bairros e comércios, e busca por voz.">
 
+<!-- PWA: instalável na tela inicial -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B1615">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rota Acessível">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -193,6 +203,67 @@
     font-family:var(--font-mono);
   }
 
+  /* ---------- Toggle de acessibilidade (cadeirantes) ---------- */
+  .a11y-toggle{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--sand-100);
+    cursor:pointer;
+    user-select:none;
+    padding:2px 0;
+  }
+  .a11y-toggle .switch{
+    flex:none;
+    width:38px; height:22px;
+    border-radius:999px;
+    background:var(--ink-700);
+    border:1px solid var(--line);
+    position:relative;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .a11y-toggle .switch::after{
+    content:'';
+    position:absolute;
+    top:2px; left:2px;
+    width:16px; height:16px;
+    border-radius:50%;
+    background:var(--sand-100);
+    transition:transform .15s ease;
+  }
+  .a11y-toggle input{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+  .a11y-toggle input:checked + .switch{
+    background:var(--teal-500);
+    border-color:var(--teal-500);
+  }
+  .a11y-toggle input:checked + .switch::after{
+    transform:translateX(16px);
+  }
+  .a11y-toggle input:focus-visible + .switch{
+    outline:3px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  /* Badge de acessibilidade nos resultados */
+  .a11y-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-size:10.5px;
+    font-weight:700;
+    font-family:var(--font-body);
+    padding:2px 7px;
+    border-radius:999px;
+    margin-top:5px;
+  }
+  .a11y-badge.yes{ background:rgba(27,143,127,0.25); color:#7CE0CE; }
+  .a11y-badge.limited{ background:rgba(255,209,102,0.2); color:var(--focus); }
+
   /* ---------- Category chips ---------- */
   .chips{
     display:flex;
@@ -289,6 +360,7 @@
     border-color:var(--coral-500);
     color:#111;
   }
+  .fab[hidden]{ display:none !important; }
   .zoom-group{
     display:flex; flex-direction:column;
     border-radius:14px; overflow:hidden;
@@ -534,7 +606,14 @@
       <button class="chip" data-tags="leisure=park|place=square" data-singular="Praça">Praças</button>
       <button class="chip" data-tags="amenity=school" data-singular="Escola">Escolas</button>
       <button class="chip" data-tags="amenity=bank" data-singular="Banco">Bancos</button>
+      <button class="chip" data-tags="wheelchair=yes" data-singular="Local acessível">♿ Acessíveis</button>
     </div>
+
+    <label class="a11y-toggle" for="wheelchair-toggle">
+      <input type="checkbox" id="wheelchair-toggle">
+      <span class="switch" aria-hidden="true"></span>
+      <span>Mostrar só locais com acesso para cadeirantes</span>
+    </label>
   </header>
 
   <main class="map-wrap">
@@ -567,6 +646,9 @@
       </div>
       <button class="fab fab--primary" id="locate-btn" aria-label="Ir para minha localização">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button class="fab" id="install-btn" aria-label="Instalar aplicativo na tela inicial" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
 
@@ -757,6 +839,20 @@
   function closeSheet(){ sheet.classList.remove('open'); }
   document.getElementById('sheet-close').addEventListener('click', closeSheet);
 
+  // ---------- Filtro de acessibilidade (cadeirantes) ----------
+  var wheelchairToggle = document.getElementById('wheelchair-toggle');
+
+  function wheelchairLabel(value){
+    if(value === 'yes') return 'Acessível para cadeirantes';
+    if(value === 'limited') return 'Acesso parcial para cadeirantes';
+    return null;
+  }
+
+  wheelchairToggle.addEventListener('change', function(){
+    announce(wheelchairToggle.checked ? 'Mostrando apenas locais com acesso para cadeirantes.' : 'Filtro de acessibilidade desativado.');
+    if(lastQuery) lastQuery();
+  });
+
   var searchMarkers = L.layerGroup().addTo(map);
   var bbox = {
     south: PAULISTA_BOUNDS.getSouth(), west: PAULISTA_BOUNDS.getWest(),
@@ -783,7 +879,8 @@
 
   // Converte um resultado do Nominatim (busca por texto/voz) para o formato comum da lista.
   function fromNominatim(item){
-    return { lat: parseFloat(item.lat), lon: parseFloat(item.lon), title: shortLabel(item), subtitle: item.display_name };
+    var extratags = item.extratags || {};
+    return { lat: parseFloat(item.lat), lon: parseFloat(item.lon), title: shortLabel(item), subtitle: item.display_name, wheelchair: extratags.wheelchair || null };
   }
 
   // Converte um elemento do Overpass (busca por categoria) para o formato comum da lista.
@@ -797,7 +894,7 @@
     }
     if(t['addr:suburb']) addrParts.push(t['addr:suburb']);
     var subtitle = addrParts.length ? addrParts.join(' · ') : 'Paulista, PE';
-    return { lat: lat, lon: lon, title: t.name || t.brand || fallbackTitle, subtitle: subtitle };
+    return { lat: lat, lon: lon, title: t.name || t.brand || fallbackTitle, subtitle: subtitle, wheelchair: t.wheelchair || null };
   }
 
   // ---------- Busca livre (texto digitado ou por voz) ----------
@@ -808,13 +905,22 @@
     sheetTitle.textContent = 'Resultados para "' + query + '"';
 
     var viewbox = bbox.west + ',' + bbox.north + ',' + bbox.east + ',' + bbox.south;
-    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=12&countrycodes=br'
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&limit=12&countrycodes=br'
       + '&viewbox=' + encodeURIComponent(viewbox) + '&bounded=1'
       + '&q=' + encodeURIComponent(query);
 
     fetch(url, { headers: { 'Accept-Language':'pt-BR' } })
       .then(function(r){ return r.json(); })
-      .then(function(results){ renderResults(results.map(fromNominatim), 'Nada encontrado para "' + query + '"', 'Tente o nome de uma rua, bairro, comércio ou ponto de referência próximo.'); })
+      .then(function(results){
+        var items = results.map(fromNominatim);
+        var emptyMsg = 'Nada encontrado para "' + query + '"';
+        var emptySub = 'Tente o nome de uma rua, bairro, comércio ou ponto de referência próximo.';
+        if(wheelchairToggle.checked){
+          items = items.filter(function(it){ return it.wheelchair === 'yes' || it.wheelchair === 'limited'; });
+          emptySub = 'Nenhum resultado com informação de acesso para cadeirantes cadastrada no OpenStreetMap. Desative o filtro para ver todos os resultados.';
+        }
+        renderResults(items, emptyMsg, emptySub);
+      })
       .catch(function(){
         renderEmpty('Não foi possível buscar agora.', 'Verifique sua conexão com a internet e tente novamente.');
       });
@@ -841,7 +947,13 @@
         var items = (data.elements || [])
           .map(function(el){ return fromOverpassElement(el, singular); })
           .filter(function(it){ return it.lat !== null && it.lon !== null; });
-        renderResults(items, 'Nenhum(a) ' + label.toLowerCase() + ' encontrado(a) nesta área.', 'A base do OpenStreetMap pode não ter todos os locais cadastrados ainda.');
+        var emptyMsg = 'Nenhum(a) ' + label.toLowerCase() + ' encontrado(a) nesta área.';
+        var emptySub = 'A base do OpenStreetMap pode não ter todos os locais cadastrados ainda.';
+        if(wheelchairToggle.checked){
+          items = items.filter(function(it){ return it.wheelchair === 'yes' || it.wheelchair === 'limited'; });
+          emptySub = 'A base do OpenStreetMap ainda não tem informação de acesso para cadeirantes para ' + label.toLowerCase() + ' nesta área. Desative o filtro para ver todos os resultados.';
+        }
+        renderResults(items, emptyMsg, emptySub);
       })
       .catch(function(){
         renderEmpty('Não foi possível buscar agora.', 'Verifique sua conexão com a internet e tente novamente.');
@@ -860,11 +972,13 @@
     items.forEach(function(item){
       var btn = document.createElement('button');
       btn.className = 'result-item';
+      var wLabel = wheelchairLabel(item.wheelchair);
+      var badge = wLabel ? '<span class="a11y-badge ' + item.wheelchair + '">♿ ' + wLabel + '</span>' : '';
       btn.innerHTML =
         '<span class="dot" aria-hidden="true">' +
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="#F4F1EA" stroke-width="2"/></svg>' +
         '</span>' +
-        '<span class="txt"><strong>' + item.title + '</strong><span>' + item.subtitle + '</span></span>';
+        '<span class="txt"><strong>' + item.title + '</strong><span>' + item.subtitle + '</span>' + badge + '</span>';
       btn.addEventListener('click', function(){ selectResult(item); });
       sheetBody.appendChild(btn);
 
@@ -878,10 +992,13 @@
     var lat = item.lat, lon = item.lon;
     map.flyTo([lat, lon], 18, {duration:1.2});
     sheetTitle.textContent = item.title;
+    var wLabelSel = wheelchairLabel(item.wheelchair);
+    var badgeSel = wLabelSel ? '<span class="a11y-badge ' + item.wheelchair + '">♿ ' + wLabelSel + '</span>' : '';
     sheetBody.innerHTML =
       '<div class="place-card">' +
         '<h3>' + item.title + '</h3>' +
         '<p class="addr">' + item.subtitle + '</p>' +
+        (badgeSel ? '<p>' + badgeSel + '</p>' : '') +
         '<p class="coords">' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</p>' +
         '<div class="actions">' +
           '<button class="btn-small primary" id="route-here">Traçar rota até aqui</button>' +
@@ -990,6 +1107,38 @@
       voiceStatus.textContent = 'Busca por voz não é compatível com este navegador. Tente digitar no campo de busca.';
     });
   }
+
+  // ---------- PWA: service worker e botão de instalação ----------
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){
+        // Sem suporte a HTTPS/localhost ou outro bloqueio: o site continua funcionando normalmente sem cache offline.
+      });
+    });
+  }
+
+  var installBtn = document.getElementById('install-btn');
+  var deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', function(event){
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    installBtn.hidden = false;
+  });
+
+  installBtn.addEventListener('click', function(){
+    if(!deferredInstallPrompt) return;
+    installBtn.hidden = true;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(function(){
+      deferredInstallPrompt = null;
+    });
+  });
+
+  window.addEventListener('appinstalled', function(){
+    installBtn.hidden = true;
+    announce('Aplicativo instalado com sucesso.');
+  });
 
 })();
 </script>
