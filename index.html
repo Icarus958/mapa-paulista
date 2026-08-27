@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+<title>Rota Acessível Paulista — Mapa de mobilidade urbana</title>
+<meta name="description" content="Mapa interativo de acessibilidade e mobilidade da cidade de Paulista (PE): sua localização em tempo real, busca de ruas, bairros e comércios, e busca por voz.">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --ink-900:#0B1615;
+    --ink-800:#101F1D;
+    --ink-700:#16302C;
+    --teal-600:#0F6B62;
+    --teal-500:#1B8F7F;
+    --coral-500:#F2542D;
+    --coral-400:#FF7A50;
+    --sand-100:#F4F1EA;
+    --sand-200:#E7E1D3;
+    --line:rgba(244,241,234,0.14);
+    --focus:#FFD166;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --font-display:'Space Grotesk', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:var(--font-body);
+    background:var(--ink-900);
+    color:var(--sand-100);
+    overflow:hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+  }
+
+  a{color:inherit;}
+
+  /* ---------- Skip link (acessibilidade de teclado) ---------- */
+  .skip-link{
+    position:absolute; left:12px; top:-60px;
+    background:var(--coral-500); color:#111; font-weight:700;
+    padding:10px 16px; border-radius:var(--radius-sm); z-index:2000;
+    transition:top .15s ease;
+    text-decoration:none;
+  }
+  .skip-link:focus{ top:12px; }
+
+  :focus-visible{
+    outline:3px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  /* ---------- App shell ---------- */
+  .app{
+    position:relative;
+    height:100vh;
+    height:100dvh;
+    width:100vw;
+    display:grid;
+    grid-template-rows:auto 1fr;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    z-index:900;
+    background:linear-gradient(180deg, var(--ink-900) 0%, rgba(11,22,21,0.94) 70%, rgba(11,22,21,0) 100%);
+    padding:14px 16px 28px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .brand__mark{
+    width:34px; height:34px; flex:none;
+    border-radius:9px;
+    background:linear-gradient(135deg, var(--coral-500), var(--coral-400));
+    display:grid; place-items:center;
+    font-family:var(--font-display); font-weight:700; color:#111;
+    font-size:15px;
+  }
+  .brand__text h1{
+    font-family:var(--font-display);
+    font-size:16px;
+    margin:0;
+    letter-spacing:0.01em;
+  }
+  .brand__text p{
+    margin:0;
+    font-size:11.5px;
+    color:var(--sand-200);
+    opacity:.8;
+  }
+
+  .search-row{
+    display:flex;
+    gap:8px;
+    align-items:stretch;
+  }
+  .search-box{
+    flex:1;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--ink-700);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:0 6px 0 14px;
+    height:50px;
+  }
+  .search-box svg{ flex:none; opacity:.75; }
+  .search-box input{
+    flex:1;
+    min-width:0;
+    background:transparent;
+    border:none;
+    color:var(--sand-100);
+    font-family:var(--font-body);
+    font-size:15px;
+    height:100%;
+  }
+  .search-box input::placeholder{ color:var(--sand-200); opacity:.55; }
+  .search-box input:focus{ outline:none; }
+
+  .icon-btn{
+    flex:none;
+    width:40px; height:40px;
+    border-radius:11px;
+    border:none;
+    background:transparent;
+    color:var(--sand-100);
+    display:grid; place-items:center;
+    cursor:pointer;
+  }
+  .icon-btn:hover{ background:rgba(244,241,234,0.08); }
+
+  .mic-btn{
+    flex:none;
+    width:50px; height:50px;
+    border-radius:var(--radius-md);
+    border:1px solid var(--line);
+    background:var(--ink-700);
+    color:var(--sand-100);
+    display:grid; place-items:center;
+    cursor:pointer;
+    position:relative;
+  }
+  .mic-btn[aria-pressed="true"]{
+    background:var(--coral-500);
+    border-color:var(--coral-500);
+    color:#111;
+  }
+  .mic-btn .ring{
+    position:absolute; inset:-6px;
+    border-radius:16px;
+    border:2px solid var(--coral-400);
+    opacity:0;
+  }
+  .mic-btn[aria-pressed="true"] .ring{
+    animation:pulse-ring 1.4s ease-out infinite;
+  }
+  @keyframes pulse-ring{
+    0%{ opacity:.65; transform:scale(0.9);}
+    100%{ opacity:0; transform:scale(1.35);}
+  }
+
+  .voice-status{
+    font-size:12.5px;
+    color:var(--coral-400);
+    min-height:16px;
+    font-family:var(--font-mono);
+  }
+
+  /* ---------- Category chips ---------- */
+  .chips{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    scrollbar-width:none;
+    padding-bottom:2px;
+  }
+  .chips::-webkit-scrollbar{ display:none; }
+  .chip{
+    flex:none;
+    font-family:var(--font-body);
+    font-size:13px;
+    font-weight:600;
+    color:var(--sand-100);
+    background:var(--ink-700);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:8px 14px;
+    cursor:pointer;
+  }
+  .chip:hover{ background:rgba(244,241,234,0.1); }
+  .chip.active{
+    background:var(--teal-500);
+    border-color:var(--teal-500);
+    color:#06110F;
+  }
+
+  /* ---------- Map ---------- */
+  .map-wrap{ position:relative; min-height:0; }
+  #map{
+    position:absolute; inset:0;
+    background:var(--ink-800);
+  }
+  .leaflet-control-attribution{
+    font-size:10px !important;
+    background:rgba(16,31,29,0.85) !important;
+    color:var(--sand-200) !important;
+  }
+  .leaflet-control-attribution a{ color:var(--sand-100) !important; }
+  .leaflet-control-zoom{ display:none; } /* usamos controles próprios */
+
+  /* Marcador "você está aqui" */
+  .me-dot{ position:relative; width:22px; height:22px; }
+  .me-dot__core{
+    position:absolute; left:50%; top:50%; width:16px; height:16px;
+    margin:-8px 0 0 -8px;
+    background:var(--coral-500);
+    border:3px solid var(--sand-100);
+    border-radius:50%;
+    box-shadow:0 1px 6px rgba(0,0,0,.5);
+  }
+  .me-dot__pulse{
+    position:absolute; left:50%; top:50%; width:22px; height:22px;
+    margin:-11px 0 0 -11px;
+    background:rgba(242,84,45,0.45);
+    border-radius:50%;
+    animation:me-pulse 2s ease-out infinite;
+  }
+  @keyframes me-pulse{
+    0%{ transform:scale(0.6); opacity:.9; }
+    100%{ transform:scale(2.6); opacity:0; }
+  }
+
+  .pin-icon{
+    width:30px; height:38px;
+    display:block;
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,.45));
+  }
+
+  /* ---------- Floating controls ---------- */
+  .fab-stack{
+    position:absolute;
+    right:14px;
+    bottom:14px;
+    z-index:850;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .fab{
+    width:48px; height:48px;
+    border-radius:14px;
+    border:1px solid var(--line);
+    background:var(--ink-700);
+    color:var(--sand-100);
+    display:grid; place-items:center;
+    cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+  }
+  .fab:hover{ background:rgba(244,241,234,0.1); }
+  .fab--primary{
+    background:var(--coral-500);
+    border-color:var(--coral-500);
+    color:#111;
+  }
+  .zoom-group{
+    display:flex; flex-direction:column;
+    border-radius:14px; overflow:hidden;
+    border:1px solid var(--line);
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+  }
+  .zoom-group .fab{
+    border-radius:0; box-shadow:none; border:none;
+    border-bottom:1px solid var(--line);
+  }
+  .zoom-group .fab:last-child{ border-bottom:none; }
+
+  .scale-readout{
+    position:absolute;
+    left:14px;
+    bottom:14px;
+    z-index:850;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    background:rgba(16,31,29,0.85);
+    border:1px solid var(--line);
+    color:var(--sand-200);
+    padding:6px 10px;
+    border-radius:var(--radius-sm);
+    max-width:min(60vw, 320px);
+    line-height:1.4;
+  }
+  .scale-readout strong{ color:var(--sand-100); }
+
+  /* ---------- Location status banner ---------- */
+  .geo-banner{
+    position:absolute;
+    top:14px; left:14px; right:14px;
+    z-index:850;
+    background:var(--ink-700);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:14px;
+    display:none;
+    gap:10px;
+    align-items:flex-start;
+    box-shadow:0 6px 20px rgba(0,0,0,.35);
+  }
+  .geo-banner.show{ display:flex; }
+  .geo-banner svg{ flex:none; margin-top:2px; color:var(--coral-400); }
+  .geo-banner p{ margin:0 0 8px; font-size:13.5px; line-height:1.5; }
+  .geo-banner .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .btn-small{
+    font-family:var(--font-body);
+    font-weight:600; font-size:12.5px;
+    padding:8px 12px; border-radius:9px;
+    border:1px solid var(--line);
+    background:transparent; color:var(--sand-100);
+    cursor:pointer;
+  }
+  .btn-small.primary{
+    background:var(--coral-500); border-color:var(--coral-500); color:#111;
+  }
+  .geo-banner button.close{
+    margin-left:auto; background:none; border:none; color:var(--sand-200);
+    cursor:pointer; padding:2px;
+  }
+
+  /* ---------- Bottom sheet (resultados) ---------- */
+  .sheet{
+    position:absolute;
+    left:0; right:0; bottom:0;
+    z-index:880;
+    background:var(--ink-700);
+    border-top:1px solid var(--line);
+    border-radius:20px 20px 0 0;
+    max-height:min(62vh, 520px);
+    display:flex;
+    flex-direction:column;
+    transform:translateY(100%);
+    transition:transform .25s ease;
+    box-shadow:0 -8px 30px rgba(0,0,0,.4);
+  }
+  .sheet.open{ transform:translateY(0); }
+  .sheet__handle{
+    width:40px; height:4px; border-radius:2px;
+    background:var(--line);
+    margin:10px auto 4px;
+  }
+  .sheet__head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:4px 16px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  .sheet__head h2{ font-family:var(--font-display); font-size:14px; margin:0; }
+  .sheet__list{
+    overflow-y:auto;
+    padding:6px 8px 16px;
+  }
+  .result-item{
+    width:100%;
+    text-align:left;
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    padding:12px 10px;
+    border-radius:12px;
+    border:none;
+    background:transparent;
+    color:var(--sand-100);
+    cursor:pointer;
+    font-family:var(--font-body);
+  }
+  .result-item:hover{ background:rgba(244,241,234,0.06); }
+  .result-item .dot{
+    flex:none; width:30px; height:30px; border-radius:9px;
+    background:var(--teal-600);
+    display:grid; place-items:center;
+    margin-top:2px;
+  }
+  .result-item .txt strong{ display:block; font-size:14px; font-weight:600; }
+  .result-item .txt span{ display:block; font-size:12px; color:var(--sand-200); opacity:.75; margin-top:2px; }
+  .result-empty{ padding:26px 16px; text-align:center; color:var(--sand-200); font-size:13.5px; }
+  .result-empty strong{ display:block; color:var(--sand-100); margin-bottom:4px; font-family:var(--font-display); font-size:15px;}
+
+  /* ---------- Painel de local selecionado ---------- */
+  .place-card{
+    padding:14px 16px 20px;
+  }
+  .place-card h3{
+    font-family:var(--font-display);
+    font-size:17px; margin:0 0 4px;
+  }
+  .place-card .addr{ font-size:13px; color:var(--sand-200); margin:0 0 14px; line-height:1.5; }
+  .place-card .coords{
+    font-family:var(--font-mono); font-size:12px; color:var(--sand-200);
+    background:var(--ink-800); border-radius:9px; padding:8px 10px;
+    margin-bottom:14px;
+  }
+  .place-card .actions{ display:flex; gap:10px; }
+  .place-card .actions .btn-small{ flex:1; text-align:center; }
+
+  /* ---------- Toast (leitor de tela friendly) ---------- */
+  .sr-only{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+
+  /* ---------- Responsivo desktop ---------- */
+  @media (min-width:860px){
+    .app{ grid-template-columns:1fr; }
+    .topbar{ padding:18px 24px 34px; }
+    .search-row{ max-width:640px; }
+    .sheet{
+      left:24px; right:auto; bottom:24px; top:auto;
+      width:380px; max-height:60vh;
+      border-radius:var(--radius-lg);
+      border:1px solid var(--line);
+    }
+    .fab-stack{ right:24px; bottom:24px; }
+    .scale-readout{ left:24px; bottom:24px; }
+    .geo-banner{ top:18px; left:24px; right:auto; width:420px; }
+  }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#search-input">Pular para a busca</a>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand__mark" aria-hidden="true">RA</div>
+      <div class="brand__text">
+        <h1>Rota Acessível — Paulista</h1>
+        <p>Mapa de mobilidade e acessibilidade urbana · Projeto de pesquisa</p>
+      </div>
+    </div>
+
+    <form class="search-row" id="search-form" role="search" aria-label="Buscar endereço, bairro ou estabelecimento">
+      <label for="search-input" class="sr-only">Buscar rua, bairro, praça ou estabelecimento em Paulista</label>
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M20 20L16.5 16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="search-input" type="text" inputmode="search" autocomplete="off"
+               placeholder="Buscar rua, bairro, praça ou loja em Paulista">
+        <button type="submit" class="icon-btn" aria-label="Buscar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <button type="button" id="mic-btn" class="mic-btn" aria-pressed="false" aria-label="Buscar por voz">
+        <span class="ring" aria-hidden="true"></span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 01-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </form>
+
+    <p class="voice-status" id="voice-status" aria-live="polite"></p>
+
+    <div class="chips" role="group" aria-label="Filtrar por categoria">
+      <button class="chip" data-query="farmácia">Farmácias</button>
+      <button class="chip" data-query="hospital">Saúde</button>
+      <button class="chip" data-query="ponto de ônibus">Ônibus</button>
+      <button class="chip" data-query="praça">Praças</button>
+      <button class="chip" data-query="escola">Escolas</button>
+      <button class="chip" data-query="mercado">Mercados</button>
+      <button class="chip" data-query="banco">Bancos</button>
+    </div>
+  </header>
+
+  <main class="map-wrap">
+    <div id="map" role="application" aria-label="Mapa interativo da cidade de Paulista"></div>
+
+    <div class="geo-banner" id="geo-banner">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="2"/></svg>
+      <div>
+        <p id="geo-banner-text">Este site usa sua localização para mostrar onde você está no mapa. Toque em "Permitir" quando o navegador perguntar.</p>
+        <div class="actions">
+          <button class="btn-small primary" id="geo-retry">Ativar localização</button>
+          <button class="btn-small" id="geo-dismiss">Agora não</button>
+        </div>
+      </div>
+      <button class="close" id="geo-close" aria-label="Fechar aviso">✕</button>
+    </div>
+
+    <p class="scale-readout" id="scale-readout" aria-live="off">
+      Centro do mapa: <strong id="center-coords">—</strong>
+    </p>
+
+    <div class="fab-stack">
+      <div class="zoom-group">
+        <button class="fab" id="zoom-in" aria-label="Aproximar mapa">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="fab" id="zoom-out" aria-label="Afastar mapa">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <button class="fab fab--primary" id="locate-btn" aria-label="Ir para minha localização">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <section class="sheet" id="sheet" aria-label="Resultados da busca">
+      <div class="sheet__handle" aria-hidden="true"></div>
+      <div class="sheet__head">
+        <h2 id="sheet-title">Buscar um local</h2>
+        <button class="icon-btn" id="sheet-close" aria-label="Fechar painel">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="sheet__list" id="sheet-body">
+        <div class="result-empty">
+          <strong>Encontre ruas, bairros e comércios</strong>
+          Digite no campo de busca, toque no microfone ou escolha uma categoria acima.
+        </div>
+      </div>
+    </section>
+  </main>
+
+</div>
+
+<div id="live-region" class="sr-only" aria-live="polite"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Configuração base: Paulista, PE, Brasil ----------
+  var PAULISTA_CENTER = [-7.9406, -34.8728];
+  var PAULISTA_BOUNDS = L.latLngBounds([-8.03, -34.98], [-7.85, -34.78]); // caixa ampla ao redor do município
+  var BRASIL_CENTER = [-14.235, -51.9253];
+
+  var map = L.map('map', {
+    zoomControl:false,
+    attributionControl:true,
+    minZoom:4,
+    maxZoom:19
+  }).setView(BRASIL_CENTER, 4);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom:19,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">colaboradores do OpenStreetMap</a>'
+  }).addTo(map);
+
+  // Anima suavemente do Brasil até Paulista ao carregar, situando o usuário geograficamente.
+  window.setTimeout(function(){
+    map.flyTo(PAULISTA_CENTER, 14, { duration: 2.1 });
+  }, 500);
+
+  function announce(msg){
+    var region = document.getElementById('live-region');
+    region.textContent = '';
+    window.setTimeout(function(){ region.textContent = msg; }, 60);
+  }
+
+  // ---------- Leitura do centro do mapa (coordenadas) ----------
+  var centerCoords = document.getElementById('center-coords');
+  function updateCenterReadout(){
+    var c = map.getCenter();
+    centerCoords.textContent = c.lat.toFixed(5) + ', ' + c.lng.toFixed(5) + ' · zoom ' + map.getZoom();
+  }
+  map.on('moveend zoomend', updateCenterReadout);
+  updateCenterReadout();
+
+  // ---------- Zoom customizado ----------
+  document.getElementById('zoom-in').addEventListener('click', function(){ map.zoomIn(); });
+  document.getElementById('zoom-out').addEventListener('click', function(){ map.zoomOut(); });
+
+  // ---------- Marcador "você está aqui" ----------
+  var meIcon = L.divIcon({
+    className:'',
+    html:'<div class="me-dot"><div class="me-dot__pulse"></div><div class="me-dot__core"></div></div>',
+    iconSize:[22,22],
+    iconAnchor:[11,11]
+  });
+  var meMarker = null;
+  var accuracyCircle = null;
+  var watchId = null;
+
+  var geoBanner = document.getElementById('geo-banner');
+  var geoBannerText = document.getElementById('geo-banner-text');
+
+  function showGeoBanner(text){
+    geoBannerText.textContent = text;
+    geoBanner.classList.add('show');
+  }
+  function hideGeoBanner(){ geoBanner.classList.remove('show'); }
+
+  document.getElementById('geo-dismiss').addEventListener('click', hideGeoBanner);
+  document.getElementById('geo-close').addEventListener('click', hideGeoBanner);
+
+  function placeMe(lat, lng, accuracy){
+    var latlng = [lat, lng];
+    if(!meMarker){
+      meMarker = L.marker(latlng, {icon:meIcon, zIndexOffset:1000, keyboard:false}).addTo(map);
+      meMarker.bindPopup('Você está aqui');
+    } else {
+      meMarker.setLatLng(latlng);
+    }
+    if(accuracy){
+      if(!accuracyCircle){
+        accuracyCircle = L.circle(latlng, {radius:accuracy, color:'#F2542D', weight:1, fillColor:'#F2542D', fillOpacity:0.08});
+        accuracyCircle.addTo(map);
+      } else {
+        accuracyCircle.setLatLng(latlng);
+        accuracyCircle.setRadius(accuracy);
+      }
+    }
+  }
+
+  function startWatching(){
+    if(!('geolocation' in navigator)){
+      showGeoBanner('Este navegador não oferece suporte a localização. Use a busca para encontrar endereços manualmente.');
+      return;
+    }
+    hideGeoBanner();
+    navigator.geolocation.getCurrentPosition(function(pos){
+      placeMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      map.flyTo([pos.coords.latitude, pos.coords.longitude], 17, {duration:1.4});
+      announce('Localização encontrada. Mapa centralizado na sua posição atual.');
+    }, onGeoError, {enableHighAccuracy:true, timeout:10000});
+
+    if(watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = navigator.geolocation.watchPosition(function(pos){
+      placeMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+    }, function(){ /* ignora erros silenciosos do watch contínuo */ }, {enableHighAccuracy:true, maximumAge:5000});
+  }
+
+  function onGeoError(err){
+    if(err.code === err.PERMISSION_DENIED){
+      showGeoBanner('A permissão de localização foi negada. Para se localizar no mapa, ative a localização nas configurações do navegador e toque em "Ativar localização" novamente.');
+    } else {
+      showGeoBanner('Não foi possível obter sua localização agora. Verifique o GPS do aparelho e tente novamente.');
+    }
+  }
+
+  document.getElementById('geo-retry').addEventListener('click', startWatching);
+  document.getElementById('locate-btn').addEventListener('click', function(){
+    if(meMarker){
+      map.flyTo(meMarker.getLatLng(), Math.max(map.getZoom(), 17), {duration:1});
+    }
+    startWatching();
+  });
+
+  // Pede a permissão de localização assim que a página carrega, como solicitado.
+  window.setTimeout(startWatching, 1200);
+
+  // ---------- Busca de lugares (Nominatim / OpenStreetMap) ----------
+  var sheet = document.getElementById('sheet');
+  var sheetBody = document.getElementById('sheet-body');
+  var sheetTitle = document.getElementById('sheet-title');
+  var searchInput = document.getElementById('search-input');
+  var searchForm = document.getElementById('search-form');
+
+  function openSheet(){ sheet.classList.add('open'); }
+  function closeSheet(){ sheet.classList.remove('open'); }
+  document.getElementById('sheet-close').addEventListener('click', closeSheet);
+
+  var searchMarkers = L.layerGroup().addTo(map);
+
+  function renderEmpty(msg, sub){
+    sheetBody.innerHTML =
+      '<div class="result-empty"><strong>' + msg + '</strong>' + (sub || '') + '</div>';
+  }
+
+  function renderLoading(){
+    sheetBody.innerHTML = '<div class="result-empty">Buscando em Paulista…</div>';
+  }
+
+  function shortLabel(item){
+    var a = item.address || {};
+    var parts = [];
+    if(a.road) parts.push(a.road);
+    if(a.suburb || a.neighbourhood) parts.push(a.suburb || a.neighbourhood);
+    if(!a.road && item.display_name) return item.display_name.split(',').slice(0,2).join(',');
+    return parts.length ? parts.join(', ') : item.display_name;
+  }
+
+  function runSearch(query){
+    if(!query || !query.trim()) return;
+    openSheet();
+    renderLoading();
+    sheetTitle.textContent = 'Resultados para "' + query + '"';
+
+    var vb = PAULISTA_BOUNDS.toBBoxString(); // minlon,minlat,maxlon,maxlat -> Nominatim usa left,top,right,bottom
+    var bounds = PAULISTA_BOUNDS;
+    var viewbox = bounds.getWest() + ',' + bounds.getNorth() + ',' + bounds.getEast() + ',' + bounds.getSouth();
+
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=10&countrycodes=br'
+      + '&viewbox=' + encodeURIComponent(viewbox) + '&bounded=1'
+      + '&q=' + encodeURIComponent(query + ', Paulista, Pernambuco');
+
+    fetch(url, { headers: { 'Accept-Language':'pt-BR' } })
+      .then(function(r){ return r.json(); })
+      .then(function(results){ renderResults(results, query); })
+      .catch(function(){
+        renderEmpty('Não foi possível buscar agora.', 'Verifique sua conexão com a internet e tente novamente.');
+      });
+  }
+
+  function renderResults(results, query){
+    searchMarkers.clearLayers();
+    if(!results || !results.length){
+      renderEmpty('Nada encontrado para "' + query + '"', 'Tente o nome de uma rua, bairro ou ponto de referência próximo.');
+      announce('Nenhum resultado encontrado.');
+      return;
+    }
+    announce(results.length + ' resultados encontrados.');
+    sheetBody.innerHTML = '';
+    results.forEach(function(item){
+      var btn = document.createElement('button');
+      btn.className = 'result-item';
+      btn.innerHTML =
+        '<span class="dot" aria-hidden="true">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="#F4F1EA" stroke-width="2"/></svg>' +
+        '</span>' +
+        '<span class="txt"><strong>' + shortLabel(item) + '</strong><span>' + item.display_name + '</span></span>';
+      btn.addEventListener('click', function(){ selectResult(item); });
+      sheetBody.appendChild(btn);
+
+      L.marker([item.lat, item.lon]).addTo(searchMarkers);
+    });
+  }
+
+  function selectResult(item){
+    var lat = parseFloat(item.lat), lon = parseFloat(item.lon);
+    map.flyTo([lat, lon], 18, {duration:1.2});
+    sheetTitle.textContent = shortLabel(item);
+    sheetBody.innerHTML =
+      '<div class="place-card">' +
+        '<h3>' + shortLabel(item) + '</h3>' +
+        '<p class="addr">' + item.display_name + '</p>' +
+        '<p class="coords">' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</p>' +
+        '<div class="actions">' +
+          '<button class="btn-small primary" id="route-here">Traçar rota até aqui</button>' +
+          '<button class="btn-small" id="back-results">Voltar aos resultados</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('back-results').addEventListener('click', function(){
+      runSearch(searchInput.value);
+    });
+    document.getElementById('route-here').addEventListener('click', function(){
+      if(meMarker){
+        var url = 'https://www.openstreetmap.org/directions?from=' + meMarker.getLatLng().lat + ',' + meMarker.getLatLng().lng + '&to=' + lat + ',' + lon;
+        window.open(url, '_blank', 'noopener');
+      } else {
+        announce('Ative sua localização primeiro para traçar a rota.');
+        showGeoBanner('Ative sua localização para calcular a rota até este local.');
+      }
+    });
+    announce('Local selecionado: ' + shortLabel(item));
+  }
+
+  searchForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    runSearch(searchInput.value);
+  });
+
+  document.querySelectorAll('.chip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('active'); });
+      chip.classList.add('active');
+      searchInput.value = chip.dataset.query;
+      runSearch(chip.dataset.query);
+    });
+  });
+
+  // ---------- Busca por voz (Web Speech API) ----------
+  var micBtn = document.getElementById('mic-btn');
+  var voiceStatus = document.getElementById('voice-status');
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recognition = null;
+  var listening = false;
+
+  if(SpeechRecognition){
+    recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = function(){
+      listening = true;
+      micBtn.setAttribute('aria-pressed', 'true');
+      voiceStatus.textContent = 'Ouvindo… diga o nome de uma rua, bairro ou loja.';
+    };
+    recognition.onresult = function(event){
+      var transcript = '';
+      for(var i=0;i<event.results.length;i++){
+        transcript += event.results[i][0].transcript;
+      }
+      searchInput.value = transcript;
+      voiceStatus.textContent = '"' + transcript + '"';
+      if(event.results[0].isFinal){
+        runSearch(transcript);
+      }
+    };
+    recognition.onerror = function(event){
+      listening = false;
+      micBtn.setAttribute('aria-pressed', 'false');
+      if(event.error === 'not-allowed' || event.error === 'service-not-allowed'){
+        voiceStatus.textContent = 'Permissão de microfone negada. Ative o microfone nas configurações do navegador.';
+      } else {
+        voiceStatus.textContent = 'Não entendi. Toque no microfone para tentar de novo.';
+      }
+    };
+    recognition.onend = function(){
+      listening = false;
+      micBtn.setAttribute('aria-pressed', 'false');
+    };
+
+    micBtn.addEventListener('click', function(){
+      if(listening){
+        recognition.stop();
+        return;
+      }
+      // Solicita explicitamente a permissão de microfone, conforme exigido pelo projeto.
+      navigator.mediaDevices.getUserMedia({ audio:true })
+        .then(function(stream){
+          stream.getTracks().forEach(function(t){ t.stop(); }); // não gravamos áudio, apenas confirmamos a permissão
+          recognition.start();
+        })
+        .catch(function(){
+          voiceStatus.textContent = 'Não foi possível acessar o microfone. Verifique as permissões do navegador.';
+        });
+    });
+  } else {
+    micBtn.addEventListener('click', function(){
+      voiceStatus.textContent = 'Busca por voz não é compatível com este navegador. Tente digitar no campo de busca.';
+    });
+  }
+
+})();
+</script>
+</body>
+</html>
