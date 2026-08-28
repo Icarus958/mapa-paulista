@@ -3,7 +3,7 @@
 // rápido e funcionar offline; buscas de lugares (Nominatim/Overpass) e
 // tiles do mapa sempre vão para a rede, pois dependem de dados atuais.
 
-var CACHE_NAME = 'rota-acessivel-paulista-v1';
+var CACHE_NAME = 'rota-acessivel-paulista-v2';
 
 var APP_SHELL = [
   './',
