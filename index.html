@@ -17,6 +17,28 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<!-- Firebase: autenticação (login permanente) + Firestore (dados do perfil) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+  var firebaseConfig = {
+    apiKey: "AIzaSyAORAPzCCwJUEpSh4iOWbLh6LbCLYy9P80",
+    authDomain: "rota-acessivel-7563a.firebaseapp.com",
+    databaseURL: "https://rota-acessivel-7563a-default-rtdb.firebaseio.com",
+    projectId: "rota-acessivel-7563a",
+    storageBucket: "rota-acessivel-7563a.firebasestorage.app",
+    messagingSenderId: "572294804093",
+    appId: "1:572294804093:web:207b1f8eca1ba68090b714",
+    measurementId: "G-RK8G0PNGWZ"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var auth = firebase.auth();
+  var db = firebase.firestore();
+  // LOCAL = mantém o usuário logado mesmo fechando o navegador/app (login permanente).
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
@@ -1113,7 +1135,7 @@
           <button type="submit" class="btn-small primary btn-block">Criar conta</button>
         </form>
 
-        <p class="modal-note" style="margin-top:18px;">⚠️ Este é um cadastro local de demonstração: as contas ficam salvas apenas neste navegador/aparelho, não em um servidor. Não use uma senha que você usa em outros sites.</p>
+        <p class="modal-note" style="margin-top:18px;">🔒 Sua conta fica salva com segurança na nuvem (Firebase) e você continua logado neste aparelho até sair manualmente.</p>
       </div>
 
       <!-- ---------- Logado: perfil + histórico ---------- -->
@@ -1875,6 +1897,148 @@
     btn.addEventListener('click', function(){ setPage(btn.dataset.page); });
   });
 
+})();
+</script>
+
+<!-- ---------- Autenticação (Firebase) e página "Minha conta" ---------- -->
+<script>
+(function(){
+  var authMsg = document.getElementById('auth-msg');
+  var tabLogin = document.getElementById('tab-login');
+  var tabCadastro = document.getElementById('tab-cadastro');
+  var loginForm = document.getElementById('login-form');
+  var signupForm = document.getElementById('signup-form');
+  var disabilitySelect = document.getElementById('signup-disability');
+  var disabilityDetailWrap = document.getElementById('signup-disability-detail-wrap');
+  var contaVisitante = document.getElementById('conta-visitante');
+  var contaLogada = document.getElementById('conta-logada');
+
+  function showAuthMsg(text, isSuccess){
+    authMsg.textContent = text || '';
+    authMsg.classList.toggle('success', !!isSuccess);
+  }
+
+  function setAuthTab(which){
+    var isLogin = which === 'login';
+    tabLogin.classList.toggle('active', isLogin);
+    tabLogin.setAttribute('aria-selected', String(isLogin));
+    tabCadastro.classList.toggle('active', !isLogin);
+    tabCadastro.setAttribute('aria-selected', String(!isLogin));
+    loginForm.hidden = !isLogin;
+    signupForm.hidden = isLogin;
+    showAuthMsg('');
+  }
+  tabLogin.addEventListener('click', function(){ setAuthTab('login'); });
+  tabCadastro.addEventListener('click', function(){ setAuthTab('cadastro'); });
+
+  disabilitySelect.addEventListener('change', function(){
+    var v = disabilitySelect.value;
+    disabilityDetailWrap.hidden = (v === 'Nenhuma' || v === 'Prefiro não informar');
+  });
+
+  // Traduz os códigos de erro do Firebase para mensagens em português.
+  function traduzErroFirebase(err){
+    var codigos = {
+      'auth/invalid-email': 'E-mail inválido.',
+      'auth/user-not-found': 'Não existe conta com esse e-mail.',
+      'auth/wrong-password': 'Senha incorreta.',
+      'auth/invalid-credential': 'E-mail ou senha incorretos.',
+      'auth/email-already-in-use': 'Já existe uma conta com esse e-mail.',
+      'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
+      'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco e tente novamente.',
+      'auth/network-request-failed': 'Sem conexão com a internet.',
+      'auth/requires-recent-login': 'Por segurança, saia e entre novamente antes de excluir a conta.'
+    };
+    return codigos[err && err.code] || 'Não foi possível concluir. Tente novamente.';
+  }
+
+  // ---- Entrar ----
+  loginForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    showAuthMsg('Entrando…');
+    var email = document.getElementById('login-email').value.trim();
+    var senha = document.getElementById('login-password').value;
+    auth.signInWithEmailAndPassword(email, senha)
+      .then(function(){ loginForm.reset(); showAuthMsg(''); })
+      .catch(function(err){ showAuthMsg(traduzErroFirebase(err)); });
+  });
+
+  // ---- Criar conta ----
+  signupForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    showAuthMsg('Criando conta…');
+    var username = document.getElementById('signup-username').value.trim();
+    var email = document.getElementById('signup-email').value.trim();
+    var senha = document.getElementById('signup-password').value;
+    var disability = disabilitySelect.value;
+    var disabilityDetail = document.getElementById('signup-disability-detail').value.trim();
+
+    auth.createUserWithEmailAndPassword(email, senha)
+      .then(function(cred){
+        return cred.user.updateProfile({ displayName: username }).then(function(){
+          return db.collection('usuarios').doc(cred.user.uid).set({
+            username: username,
+            email: email,
+            disability: disability,
+            disabilityDetail: disabilityDetail,
+            criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        });
+      })
+      .then(function(){
+        signupForm.reset();
+        disabilityDetailWrap.hidden = true;
+        showAuthMsg('');
+      })
+      .catch(function(err){ showAuthMsg(traduzErroFirebase(err)); });
+  });
+
+  // ---- Sair ----
+  document.getElementById('logout-btn').addEventListener('click', function(){
+    auth.signOut();
+  });
+
+  // ---- Excluir conta ----
+  document.getElementById('delete-account-btn').addEventListener('click', function(){
+    var user = auth.currentUser;
+    if(!user) return;
+    if(!window.confirm('Tem certeza que deseja excluir sua conta? Essa ação não pode ser desfeita.')) return;
+    db.collection('usuarios').doc(user.uid).delete().catch(function(){});
+    user.delete().catch(function(err){ window.alert(traduzErroFirebase(err)); });
+  });
+
+  // ---- Limpar histórico exibido na tela (o histórico ainda não é salvo na nuvem) ----
+  document.getElementById('hist-clear').addEventListener('click', function(){
+    document.getElementById('hist-buscas').innerHTML = '<small>Nenhuma busca salva ainda.</small>';
+    document.getElementById('hist-locais').innerHTML = '<small>Nenhum local salvo ainda.</small>';
+    document.getElementById('hist-rotas').innerHTML = '<small>Nenhuma rota salva ainda.</small>';
+  });
+
+  // Preenche a página "Minha conta" com os dados do usuário logado.
+  window.renderAccountPage = function(){
+    var user = auth.currentUser;
+    if(!user){
+      contaVisitante.hidden = false;
+      contaLogada.hidden = true;
+      return;
+    }
+    contaVisitante.hidden = true;
+    contaLogada.hidden = false;
+    document.getElementById('conta-username').textContent = user.displayName || 'usuário';
+    document.getElementById('conta-email').textContent = user.email || '';
+    db.collection('usuarios').doc(user.uid).get().then(function(doc){
+      var data = doc.exists ? doc.data() : {};
+      var texto = (data.disability && data.disability !== 'Nenhuma') ? data.disability : 'Nenhuma informada';
+      if(data.disabilityDetail){ texto += ' — ' + data.disabilityDetail; }
+      document.getElementById('conta-disability-text').textContent = texto;
+    }).catch(function(){});
+  };
+
+  // Sempre que o estado de login mudar (entrar/sair/carregar página), atualiza a tela se ela estiver visível.
+  auth.onAuthStateChanged(function(){
+    var pageConta = document.getElementById('page-conta');
+    if(pageConta && !pageConta.hidden){ window.renderAccountPage(); }
+  });
 })();
 </script>
 </body>
