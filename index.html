@@ -133,6 +133,44 @@
   .a11y-card .a11y-toggle{ align-items:flex-start; gap:12px; }
   .a11y-card .a11y-toggle .switch{ margin-top:2px; }
 
+  /* ---------- Login / cadastro ---------- */
+  .auth-tabs{
+    display:flex; gap:8px; margin-bottom:16px;
+    background:var(--ink-800); border-radius:999px; padding:4px;
+  }
+  .auth-tab{
+    flex:1; border:none; background:transparent; color:var(--sand-200);
+    font-family:var(--font-body); font-weight:700; font-size:calc(13px * var(--font-scale, 1));
+    padding:9px 10px; border-radius:999px; cursor:pointer;
+  }
+  .auth-tab.active{ background:var(--teal-500); color:#06110F; }
+  .form-msg{
+    font-size:calc(12.5px * var(--font-scale, 1)); font-weight:600; min-height:18px;
+    margin:0 0 8px; color:var(--coral-400);
+  }
+  .form-msg.success{ color:#7CE0CE; }
+  .auth-form{ display:flex; flex-direction:column; gap:12px; }
+  .form-field{ display:flex; flex-direction:column; gap:6px; }
+  .form-field span{ font-size:calc(12.5px * var(--font-scale, 1)); font-weight:600; color:var(--sand-100); }
+  .form-field input, .form-field select{
+    background:var(--ink-700); border:1px solid var(--line); border-radius:var(--radius-sm);
+    color:var(--sand-100); font-family:var(--font-body); font-size:calc(14px * var(--font-scale, 1));
+    padding:11px 12px;
+  }
+  .form-field input:focus, .form-field select:focus{ outline:2px solid var(--focus); outline-offset:1px; }
+  .btn-block{ width:100%; text-align:center; padding:12px; margin-top:4px; }
+
+  /* ---------- Histórico salvo por conta ---------- */
+  .hist-list{ display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+  .hist-item{
+    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    font-size:calc(12.5px * var(--font-scale, 1));
+    border-top:1px solid var(--line); padding-top:8px;
+  }
+  .hist-item:first-child{ border-top:none; padding-top:0; }
+  .hist-item .t{ color:var(--sand-100); }
+  .hist-item .d{ color:var(--sand-200); opacity:.7; font-size:calc(10.5px * var(--font-scale, 1)); white-space:nowrap; flex:none; }
+
   /* ---------- Barra de navegação inferior ---------- */
   .bottom-nav{
     z-index:900;
@@ -1013,6 +1051,104 @@
     </div>
   </section>
 
+  <section class="page page-plain" id="page-conta" data-page="conta" hidden>
+    <div class="page-inner">
+
+      <!-- ---------- Visitante: login ou cadastro ---------- -->
+      <div id="conta-visitante">
+        <h2>Minha conta</h2>
+        <p class="page-lead">Crie uma conta para salvar suas buscas e rotas neste aparelho, e nos contar se você tem alguma necessidade de acessibilidade.</p>
+
+        <div class="auth-tabs" role="tablist" aria-label="Entrar ou criar conta">
+          <button type="button" class="auth-tab active" id="tab-login" role="tab" aria-selected="true">Entrar</button>
+          <button type="button" class="auth-tab" id="tab-cadastro" role="tab" aria-selected="false">Criar conta</button>
+        </div>
+
+        <p class="form-msg" id="auth-msg" role="alert"></p>
+
+        <!-- Login -->
+        <form id="login-form" class="auth-form">
+          <label class="form-field">
+            <span>E-mail</span>
+            <input type="email" id="login-email" autocomplete="email" required>
+          </label>
+          <label class="form-field">
+            <span>Senha</span>
+            <input type="password" id="login-password" autocomplete="current-password" required>
+          </label>
+          <button type="submit" class="btn-small primary btn-block">Entrar</button>
+        </form>
+
+        <!-- Cadastro -->
+        <form id="signup-form" class="auth-form" hidden>
+          <label class="form-field">
+            <span>Nome de usuário</span>
+            <input type="text" id="signup-username" autocomplete="username" minlength="3" required>
+          </label>
+          <label class="form-field">
+            <span>E-mail</span>
+            <input type="email" id="signup-email" autocomplete="email" required>
+          </label>
+          <label class="form-field">
+            <span>Senha</span>
+            <input type="password" id="signup-password" autocomplete="new-password" minlength="6" required>
+          </label>
+          <label class="form-field">
+            <span>Você tem alguma deficiência?</span>
+            <select id="signup-disability">
+              <option value="Nenhuma">Não</option>
+              <option value="Motora/física">Sim — motora ou física</option>
+              <option value="Visual">Sim — visual</option>
+              <option value="Auditiva">Sim — auditiva</option>
+              <option value="Intelectual ou cognitiva">Sim — intelectual ou cognitiva</option>
+              <option value="Outra">Sim — outra</option>
+              <option value="Prefiro não informar">Prefiro não informar</option>
+            </select>
+          </label>
+          <label class="form-field" id="signup-disability-detail-wrap" hidden>
+            <span>Se quiser, conte um pouco mais (opcional)</span>
+            <input type="text" id="signup-disability-detail" placeholder="Ex: uso cadeira de rodas, baixa visão…">
+          </label>
+          <p class="modal-note">Essa informação é opcional e fica salva só neste navegador — usamos apenas para ajustar o site às suas necessidades (ex: ativar automaticamente o filtro de locais acessíveis).</p>
+          <button type="submit" class="btn-small primary btn-block">Criar conta</button>
+        </form>
+
+        <p class="modal-note" style="margin-top:18px;">⚠️ Este é um cadastro local de demonstração: as contas ficam salvas apenas neste navegador/aparelho, não em um servidor. Não use uma senha que você usa em outros sites.</p>
+      </div>
+
+      <!-- ---------- Logado: perfil + histórico ---------- -->
+      <div id="conta-logada" hidden>
+        <h2>Olá, <span id="conta-username">—</span> 👋</h2>
+        <p class="page-lead" id="conta-email">—</p>
+
+        <div class="a11y-card" id="conta-disability-card">
+          <strong>Acessibilidade informada</strong>
+          <small id="conta-disability-text">—</small>
+        </div>
+
+        <div class="a11y-card">
+          <strong>🔍 Últimas buscas</strong>
+          <div id="hist-buscas" class="hist-list"><small>Nenhuma busca salva ainda.</small></div>
+        </div>
+
+        <div class="a11y-card">
+          <strong>📍 Locais visitados</strong>
+          <div id="hist-locais" class="hist-list"><small>Nenhum local salvo ainda.</small></div>
+        </div>
+
+        <div class="a11y-card">
+          <strong>🧭 Rotas traçadas</strong>
+          <div id="hist-rotas" class="hist-list"><small>Nenhuma rota salva ainda.</small></div>
+        </div>
+
+        <button type="button" class="btn-small btn-block" id="hist-clear">Limpar meu histórico</button>
+        <button type="button" class="btn-small btn-block" id="logout-btn" style="margin-top:8px;">Sair da conta</button>
+        <button type="button" class="btn-small btn-block" id="delete-account-btn" style="margin-top:8px; color:#FF8A80; border-color:rgba(255,138,128,0.4);">Excluir minha conta</button>
+      </div>
+
+    </div>
+  </section>
+
   <nav class="bottom-nav" aria-label="Navegação principal">
     <button type="button" class="nav-btn active" data-page="map" aria-current="page">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="2"/></svg>
@@ -1022,6 +1158,10 @@
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="17" cy="17" r="4.5" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="6" r="1.8" fill="currentColor"/><path d="M10 8.5v4.5l4 2 2.5 6M6 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>Acessibilidade</span>
     </button>
+    <button type="button" class="nav-btn" data-page="conta">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="2"/><path d="M5 20c1.2-3.8 4.2-6 7-6s5.8 2.2 7 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Conta</span>
+    </button>
     <button type="button" class="nav-btn" data-page="about">
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       <span>Sobre</span>
@@ -1029,6 +1169,7 @@
   </nav>
 
 </div>
+
 
 <div id="live-region" class="sr-only" aria-live="polite"></div>
 
@@ -1712,7 +1853,7 @@
   var topbarEl = document.querySelector('.topbar');
   var pages = document.querySelectorAll('.page');
   var navButtons = document.querySelectorAll('.nav-btn');
-  var pageLabels = { map:'Mapa', a11y:'Acessibilidade', about:'Sobre o projeto' };
+  var pageLabels = { map:'Mapa', a11y:'Acessibilidade', conta:'Minha conta', about:'Sobre o projeto' };
 
   function setPage(name){
     pages.forEach(function(p){ p.hidden = (p.dataset.page !== name); });
@@ -1726,6 +1867,7 @@
       // o mapa pode ter ficado com o tamanho desatualizado enquanto a página estava escondida
       window.setTimeout(function(){ map.invalidateSize(); }, 50);
     }
+    if(name === 'conta' && typeof renderAccountPage === 'function'){ renderAccountPage(); }
     announce('Página: ' + pageLabels[name] + '.');
   }
 
