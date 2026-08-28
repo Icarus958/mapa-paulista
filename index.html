@@ -64,6 +64,18 @@
     --font-scale:1;
   }
 
+  /* ---------- Modo claro ---------- */
+  html[data-theme="light"]{
+    --ink-900:#F4F1EA;
+    --ink-800:#FFFFFF;
+    --ink-700:#FFFFFF;
+    --sand-100:#101F1D;
+    --sand-200:#3A4744;
+    --line:rgba(16,31,29,0.14);
+  }
+  html[data-theme="light"] .a11y-card{ box-shadow:0 1px 3px rgba(16,31,29,0.08); }
+  html[data-theme="light"] .result-pin{ box-shadow:0 2px 6px rgba(16,31,29,0.25); }
+
   *{box-sizing:border-box; min-width:0;}
   html,body{height:100%; width:100%; overflow-x:hidden;}
   body{
@@ -622,6 +634,20 @@
   }
   .report-hint.show{ display:block; }
 
+  /* ---------- Pino de resultado com ícone por categoria ---------- */
+  .result-pin{
+    width:30px; height:30px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--coral-500);
+    border:2px solid var(--ink-900);
+    border-radius:50% 50% 50% 0;
+    transform:rotate(45deg);
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+    font-size:15px;
+  }
+  .result-pin span{ transform:rotate(-45deg); display:block; line-height:1; }
+
+
   .modal-overlay{
     position:fixed; inset:0;
     background:rgba(11,22,21,0.72);
@@ -871,6 +897,9 @@
         <h1>Rota Acessível</h1>
         <p>Mobilidade e acessibilidade urbana em Paulista, PE</p>
       </div>
+      <button type="button" class="icon-btn" id="theme-toggle" style="margin-left:auto;" aria-label="Alternar entre modo claro e escuro">
+        <svg id="theme-icon" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36A5.4 5.4 0 0112 3z" fill="currentColor"/></svg>
+      </button>
     </div>
 
     <form class="search-row" id="search-form" role="search" aria-label="Buscar endereço, bairro ou estabelecimento">
@@ -967,6 +996,21 @@
         <div class="actions">
           <button class="btn-small primary" id="obstacle-save">Salvar obstáculo</button>
           <button class="btn-small" id="obstacle-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- Boas-vindas (mostrada só na primeira visita) ---------- -->
+    <div class="modal-overlay" id="welcome-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="welcome-modal-title">
+        <h2 id="welcome-modal-title">Bem-vindo(a) ao Rota Acessível 👋</h2>
+        <p class="page-lead" style="margin-bottom:14px;">Um mapa feito para ajudar na mobilidade e acessibilidade urbana de Paulista (PE).</p>
+        <p class="modal-note" style="margin-bottom:8px;">🔍 Busque por texto ou voz um endereço, bairro ou estabelecimento.</p>
+        <p class="modal-note" style="margin-bottom:8px;">♿ Ative o filtro de acessibilidade para ver só locais com acesso para cadeirantes.</p>
+        <p class="modal-note" style="margin-bottom:8px;">⚠️ Reporte obstáculos na via para ajudar outras pessoas.</p>
+        <p class="modal-note">👤 Crie uma conta para salvar seu histórico e preferências.</p>
+        <div class="actions">
+          <button class="btn-small primary btn-block" id="welcome-close">Começar a usar</button>
         </div>
       </div>
     </div>
@@ -1099,6 +1143,7 @@
             <input type="password" id="login-password" autocomplete="current-password" required>
           </label>
           <button type="submit" class="btn-small primary btn-block">Entrar</button>
+          <button type="button" id="forgot-password-btn" class="btn-small btn-block" style="background:transparent; border:none; text-decoration:underline;">Esqueci minha senha</button>
         </form>
 
         <!-- Cadastro -->
@@ -1143,10 +1188,16 @@
         <h2>Olá, <span id="conta-username">—</span> 👋</h2>
         <p class="page-lead" id="conta-email">—</p>
 
+        <div class="a11y-card a11y-card--info" id="verify-email-banner" hidden>
+          <strong>✉️ Confirme seu e-mail</strong>
+          <small>Enviamos um link de confirmação para o seu e-mail. Não encontrou? <button type="button" id="resend-verify-btn" style="background:transparent;border:none;color:var(--teal-500);text-decoration:underline;cursor:pointer;padding:0;font:inherit;">Reenviar e-mail</button></small>
+        </div>
+
         <div class="a11y-card" id="conta-disability-card">
           <strong>Acessibilidade informada</strong>
           <small id="conta-disability-text">—</small>
         </div>
+
 
         <div class="a11y-card">
           <strong>🔍 Últimas buscas</strong>
@@ -1527,6 +1578,38 @@
     return null;
   }
 
+  // ---------- Ícones por categoria nos resultados/marcadores ----------
+  var CATEGORY_EMOJI = {
+    'Mercado': '🛒',
+    'Farmácia': '💊',
+    'Unidade de saúde': '🏥',
+    'Padaria': '🥖',
+    'Posto de combustível': '⛽',
+    'Ponto de ônibus': '🚌',
+    'Praça': '🌳',
+    'Escola': '🏫',
+    'Banco': '🏦',
+    'Local acessível': '♿'
+  };
+  var DEFAULT_PIN_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="#F4F1EA" stroke-width="2"/></svg>';
+
+  function categoryDot(category){
+    var emoji = CATEGORY_EMOJI[category];
+    return emoji ? '<span>' + emoji + '</span>' : DEFAULT_PIN_SVG;
+  }
+
+  function categoryMarkerIcon(category){
+    var emoji = CATEGORY_EMOJI[category];
+    var inner = emoji ? '<span>' + emoji + '</span>' : DEFAULT_PIN_SVG;
+    return L.divIcon({
+      className: '',
+      html: '<div class="result-pin">' + inner + '</div>',
+      iconSize: [30, 30],
+      iconAnchor: [15, 28]
+    });
+  }
+
+
   wheelchairToggle.addEventListener('change', function(){
     announce(wheelchairToggle.checked ? 'Mostrando apenas locais com acesso para cadeirantes.' : 'Filtro de acessibilidade desativado.');
     if(lastQuery) lastQuery();
@@ -1616,7 +1699,7 @@
     }
     if(t['addr:suburb']) addrParts.push(t['addr:suburb']);
     var subtitle = addrParts.length ? addrParts.join(' · ') : 'Paulista, PE';
-    return { lat: lat, lon: lon, title: t.name || t.brand || fallbackTitle, subtitle: subtitle, wheelchair: t.wheelchair || null };
+    return { lat: lat, lon: lon, title: t.name || t.brand || fallbackTitle, subtitle: subtitle, wheelchair: t.wheelchair || null, category: fallbackTitle };
   }
 
   // ---------- Busca livre (texto digitado ou por voz) ----------
@@ -1705,14 +1788,12 @@
       var wLabel = wheelchairLabel(item.wheelchair);
       var badge = wLabel ? '<span class="a11y-badge ' + item.wheelchair + '">♿ ' + wLabel + '</span>' : '';
       btn.innerHTML =
-        '<span class="dot" aria-hidden="true">' +
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="#F4F1EA" stroke-width="2"/></svg>' +
-        '</span>' +
+        '<span class="dot" aria-hidden="true">' + categoryDot(item.category) + '</span>' +
         '<span class="txt"><strong>' + item.title + '</strong><span>' + item.subtitle + '</span>' + badge + '</span>';
       btn.addEventListener('click', function(){ selectResult(item); });
       sheetBody.appendChild(btn);
 
-      L.marker([item.lat, item.lon]).addTo(searchMarkers);
+      L.marker([item.lat, item.lon], { icon: categoryMarkerIcon(item.category) }).addTo(searchMarkers);
     });
   }
 
@@ -1733,6 +1814,7 @@
         '<div class="actions">' +
           '<button class="btn-small primary" id="route-here">Traçar rota até aqui</button>' +
           '<button class="btn-small" id="back-results">Voltar aos resultados</button>' +
+          '<button class="btn-small" id="share-place">Compartilhar local</button>' +
         '</div>' +
       '</div>';
 
@@ -1748,9 +1830,38 @@
         showGeoBanner('Ative sua localização para calcular a rota até este local.');
       }
     });
+    document.getElementById('share-place').addEventListener('click', function(){
+      var shareUrl = window.location.origin + window.location.pathname + '?lat=' + lat.toFixed(6) + '&lon=' + lon.toFixed(6) + '&nome=' + encodeURIComponent(item.title);
+      var shareData = { title: item.title, text: 'Veja este local no Rota Acessível: ' + item.title, url: shareUrl };
+      if(navigator.share){
+        navigator.share(shareData).catch(function(){});
+      } else if(navigator.clipboard){
+        navigator.clipboard.writeText(shareUrl).then(function(){
+          announce('Link copiado para a área de transferência.');
+        }).catch(function(){
+          window.prompt('Copie o link para compartilhar:', shareUrl);
+        });
+      } else {
+        window.prompt('Copie o link para compartilhar:', shareUrl);
+      }
+    });
     announce('Local selecionado: ' + item.title);
     setSpeech(item.title + '. ' + item.subtitle + (wLabelSel ? '. ' + wLabelSel + '.' : '.'));
   }
+
+  // Se o link foi aberto com ?lat=&lon= (vindo de um compartilhamento), centraliza o mapa lá.
+  (function abrirLocalCompartilhado(){
+    var params = new URLSearchParams(window.location.search);
+    var lat = parseFloat(params.get('lat'));
+    var lon = parseFloat(params.get('lon'));
+    if(!isNaN(lat) && !isNaN(lon)){
+      var nome = params.get('nome') || 'Local compartilhado';
+      window.setTimeout(function(){
+        selectResult({ lat: lat, lon: lon, title: nome, subtitle: 'Local compartilhado', wheelchair: null });
+      }, 1800);
+    }
+  })();
+
 
   searchForm.addEventListener('submit', function(e){
     e.preventDefault();
@@ -1975,6 +2086,7 @@
 
     auth.createUserWithEmailAndPassword(email, senha)
       .then(function(cred){
+        cred.user.sendEmailVerification().catch(function(){});
         return cred.user.updateProfile({ displayName: username }).then(function(){
           return db.collection('usuarios').doc(cred.user.uid).set({
             username: username,
@@ -1988,7 +2100,7 @@
       .then(function(){
         signupForm.reset();
         disabilityDetailWrap.hidden = true;
-        showAuthMsg('');
+        showAuthMsg('Conta criada! Enviamos um e-mail de confirmação para você.', true);
       })
       .catch(function(err){ showAuthMsg(traduzErroFirebase(err)); });
   });
@@ -2014,6 +2126,28 @@
     document.getElementById('hist-rotas').innerHTML = '<small>Nenhuma rota salva ainda.</small>';
   });
 
+  // ---- Esqueci minha senha ----
+  document.getElementById('forgot-password-btn').addEventListener('click', function(){
+    var email = document.getElementById('login-email').value.trim();
+    if(!email){
+      showAuthMsg('Digite seu e-mail no campo acima primeiro.');
+      return;
+    }
+    showAuthMsg('Enviando e-mail de recuperação…');
+    auth.sendPasswordResetEmail(email)
+      .then(function(){ showAuthMsg('E-mail de recuperação enviado! Confira sua caixa de entrada.', true); })
+      .catch(function(err){ showAuthMsg(traduzErroFirebase(err)); });
+  });
+
+  // ---- Verificação de e-mail ----
+  document.getElementById('resend-verify-btn').addEventListener('click', function(){
+    var user = auth.currentUser;
+    if(!user) return;
+    user.sendEmailVerification()
+      .then(function(){ window.alert('E-mail de confirmação reenviado.'); })
+      .catch(function(){ window.alert('Não foi possível reenviar agora. Tente novamente em instantes.'); });
+  });
+
   // Preenche a página "Minha conta" com os dados do usuário logado.
   window.renderAccountPage = function(){
     var user = auth.currentUser;
@@ -2026,6 +2160,7 @@
     contaLogada.hidden = false;
     document.getElementById('conta-username').textContent = user.displayName || 'usuário';
     document.getElementById('conta-email').textContent = user.email || '';
+    document.getElementById('verify-email-banner').hidden = !!user.emailVerified;
     db.collection('usuarios').doc(user.uid).get().then(function(doc){
       var data = doc.exists ? doc.data() : {};
       var texto = (data.disability && data.disability !== 'Nenhuma') ? data.disability : 'Nenhuma informada';
@@ -2041,5 +2176,39 @@
   });
 })();
 </script>
+
+<!-- ---------- Tema claro/escuro e tela de boas-vindas ---------- -->
+<script>
+(function(){
+  // ---- Tema claro/escuro ----
+  var themeToggle = document.getElementById('theme-toggle');
+  var savedTheme = null;
+  try{ savedTheme = localStorage.getItem('ra_theme'); }catch(e){}
+  if(savedTheme === 'light'){ document.documentElement.setAttribute('data-theme', 'light'); }
+
+  themeToggle.addEventListener('click', function(){
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    if(isLight){
+      document.documentElement.removeAttribute('data-theme');
+      try{ localStorage.setItem('ra_theme', 'dark'); }catch(e){}
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      try{ localStorage.setItem('ra_theme', 'light'); }catch(e){}
+    }
+  });
+
+  // ---- Boas-vindas (mostrada só na primeira visita) ----
+  var welcomeModal = document.getElementById('welcome-modal');
+  var jaVisitou = false;
+  try{ jaVisitou = !!localStorage.getItem('ra_visitou_antes'); }catch(e){}
+  if(!jaVisitou){ welcomeModal.hidden = false; }
+
+  document.getElementById('welcome-close').addEventListener('click', function(){
+    welcomeModal.hidden = true;
+    try{ localStorage.setItem('ra_visitou_antes', '1'); }catch(e){}
+  });
+})();
+</script>
+
 </body>
 </html>
