@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
-<title>Rota Acessível Paulista — Mapa de mobilidade urbana</title>
-<meta name="description" content="Mapa interativo de acessibilidade e mobilidade da cidade de Paulista (PE): sua localização em tempo real, busca de ruas, bairros e comércios, e busca por voz.">
+<title>Rota Acessível — Mobilidade e acessibilidade urbana</title>
+<meta name="description" content="Rota Acessível: mapa interativo de mobilidade e acessibilidade urbana em Paulista (PE) — localização em tempo real, busca por voz, filtro de locais acessíveis para cadeirantes e aviso de obstáculos.">
 
 <!-- PWA: instalável na tela inicial -->
 <link rel="manifest" href="manifest.json">
@@ -83,8 +83,83 @@
     max-width:100vw;
     overflow-x:hidden;
     display:grid;
-    grid-template-rows:auto 1fr;
+    grid-template-rows:auto 1fr auto;
   }
+  .topbar{ grid-row:1; }
+  .page{ grid-row:2; min-height:0; }
+  .bottom-nav{ grid-row:3; }
+
+  /* ---------- Páginas de texto (Acessibilidade / Sobre) ---------- */
+  .page-plain{
+    overflow-y:auto;
+    background:var(--ink-900);
+  }
+  .page-inner{
+    max-width:640px;
+    margin:0 auto;
+    padding:22px 18px 32px;
+  }
+  .page-inner h2{
+    font-family:var(--font-display);
+    font-size:calc(21px * var(--font-scale, 1));
+    margin:0 0 6px;
+  }
+  .page-lead{
+    font-size:calc(13.5px * var(--font-scale, 1));
+    color:var(--sand-200);
+    line-height:1.55;
+    margin:0 0 20px;
+  }
+  .a11y-card{
+    background:var(--ink-700);
+    border:1px solid var(--line);
+    border-radius:var(--radius-md);
+    padding:16px;
+    margin-bottom:12px;
+  }
+  .a11y-card strong{
+    display:block;
+    font-family:var(--font-display);
+    font-size:calc(14.5px * var(--font-scale, 1));
+    margin-bottom:4px;
+  }
+  .a11y-card small{
+    display:block;
+    font-size:calc(12.5px * var(--font-scale, 1));
+    color:var(--sand-200);
+    line-height:1.5;
+  }
+  .a11y-card--info{ background:transparent; border-style:dashed; }
+  .a11y-card .a11y-toggle{ align-items:flex-start; gap:12px; }
+  .a11y-card .a11y-toggle .switch{ margin-top:2px; }
+
+  /* ---------- Barra de navegação inferior ---------- */
+  .bottom-nav{
+    z-index:900;
+    display:flex;
+    background:var(--ink-800);
+    border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom, 0);
+  }
+  .nav-btn{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:3px;
+    padding:9px 4px calc(9px + env(safe-area-inset-bottom, 0));
+    background:transparent;
+    border:none;
+    color:var(--sand-200);
+    font-family:var(--font-body);
+    font-weight:600;
+    font-size:calc(10.5px * var(--font-scale, 1));
+    cursor:pointer;
+  }
+  .nav-btn svg{ width:21px; height:21px; }
+  .nav-btn.active{ color:var(--coral-400); }
+  .nav-btn:hover{ color:var(--sand-100); }
+  .nav-btn.active:hover{ color:var(--coral-400); }
 
   /* ---------- Top bar ---------- */
   .topbar{
@@ -95,6 +170,7 @@
     flex-direction:column;
     gap:12px;
   }
+  .topbar[hidden]{ display:none; }
 
   .brand{
     display:flex;
@@ -102,13 +178,13 @@
     gap:10px;
   }
   .brand__mark{
-    width:34px; height:34px; flex:none;
-    border-radius:9px;
-    background:linear-gradient(135deg, var(--coral-500), var(--coral-400));
+    width:36px; height:36px; flex:none;
+    border-radius:10px;
+    background:var(--ink-800);
     display:grid; place-items:center;
-    font-family:var(--font-display); font-weight:700; color:#111;
-    font-size:calc(15px * var(--font-scale, 1));
+    box-shadow:inset 0 0 0 1px var(--line);
   }
+  .brand__mark svg{ display:block; width:62%; height:62%; }
   .brand__text{ min-width:0; }
   .brand__text h1{
     font-family:var(--font-display);
@@ -205,12 +281,6 @@
   }
 
   /* ---------- Toggle de acessibilidade (cadeirantes) ---------- */
-  .a11y-panel{
-    display:flex;
-    flex-wrap:wrap;
-    align-items:center;
-    gap:8px 16px;
-  }
   .a11y-toggle{
     display:flex;
     align-items:center;
@@ -259,21 +329,30 @@
   .font-size-control{
     display:flex;
     align-items:center;
-    gap:6px;
+    justify-content:space-between;
+    gap:14px;
   }
-  .font-size-control__label{
+  .font-size-control__label{ min-width:0; }
+  .font-size-control__label strong{
+    display:block;
+    font-family:var(--font-display);
+    font-size:calc(14.5px * var(--font-scale, 1));
+    margin-bottom:4px;
+  }
+  .font-size-control__label small{
+    display:block;
     font-size:calc(12.5px * var(--font-scale, 1));
-    font-weight:600;
-    color:var(--sand-100);
-    margin-right:2px;
+    color:var(--sand-200);
+    line-height:1.5;
   }
+  .fs-buttons{ display:flex; gap:6px; flex:none; }
   .fs-btn{
     flex:none;
-    min-width:32px; height:30px;
+    min-width:34px; height:34px;
     padding:0 8px;
     border-radius:9px;
     border:1px solid var(--line);
-    background:var(--ink-700);
+    background:var(--ink-800);
     color:var(--sand-100);
     font-family:var(--font-body);
     font-weight:700;
@@ -644,7 +723,7 @@
   @media (max-width:700px){
     .topbar{ padding:10px 10px 18px; gap:9px; }
     .brand{ gap:8px; }
-    .brand__mark{ width:26px; height:26px; border-radius:7px; font-size:calc(12px * var(--font-scale, 1)); }
+    .brand__mark{ width:28px; height:28px; border-radius:8px; }
     .brand__text h1{ font-size:calc(13px * var(--font-scale, 1)); }
     .brand__text p{ font-size:calc(9.5px * var(--font-scale, 1)); }
     .search-row{ gap:6px; }
@@ -696,6 +775,10 @@
     .fab-stack{ right:24px; bottom:24px; }
     .scale-readout{ left:24px; bottom:24px; }
     .geo-banner{ top:18px; left:24px; right:auto; width:420px; }
+    .bottom-nav{ justify-content:center; gap:6px; }
+    .nav-btn{ flex:none; flex-direction:row; gap:8px; padding:12px 22px; font-size:calc(13px * var(--font-scale, 1)); }
+    .nav-btn svg{ width:18px; height:18px; }
+    .page-inner{ padding:36px 24px 40px; }
   }
 </style>
 </head>
@@ -707,10 +790,26 @@
 
   <header class="topbar">
     <div class="brand">
-      <div class="brand__mark" aria-hidden="true">RA</div>
+      <div class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 100 100">
+          <defs>
+            <linearGradient id="pinGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#FF7A50"/>
+              <stop offset="1" stop-color="#F2542D"/>
+            </linearGradient>
+          </defs>
+          <circle cx="50" cy="38" r="30" fill="url(#pinGrad)"/>
+          <polygon points="30,50 70,50 50,88" fill="url(#pinGrad)"/>
+          <circle cx="50" cy="38" r="21" fill="#101F1D"/>
+          <circle cx="55" cy="44" r="13" fill="none" stroke="#F4F1EA" stroke-width="3"/>
+          <circle cx="36" cy="28" r="4" fill="#F4F1EA"/>
+          <line x1="38" y1="31" x2="45" y2="38" stroke="#F4F1EA" stroke-width="3" stroke-linecap="round"/>
+          <line x1="46" y1="55" x2="58" y2="51" stroke="#F4F1EA" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+      </div>
       <div class="brand__text">
-        <h1>Rota Acessível — Paulista</h1>
-        <p>Mapa de mobilidade e acessibilidade urbana · Projeto de pesquisa</p>
+        <h1>Rota Acessível</h1>
+        <p>Mobilidade e acessibilidade urbana em Paulista, PE</p>
       </div>
     </div>
 
@@ -744,30 +843,9 @@
       <button class="chip" data-tags="amenity=bank" data-singular="Banco">Bancos</button>
       <button class="chip" data-tags="wheelchair=yes" data-singular="Local acessível">♿ Acessíveis</button>
     </div>
-
-    <div class="a11y-panel">
-      <label class="a11y-toggle" for="wheelchair-toggle">
-        <input type="checkbox" id="wheelchair-toggle">
-        <span class="switch" aria-hidden="true"></span>
-        <span>Mostrar só locais com acesso para cadeirantes</span>
-      </label>
-
-      <label class="a11y-toggle" for="tts-toggle" id="tts-toggle-label">
-        <input type="checkbox" id="tts-toggle">
-        <span class="switch" aria-hidden="true"></span>
-        <span>🔊 Ler resultados em voz alta</span>
-      </label>
-
-      <div class="font-size-control" role="group" aria-label="Tamanho do texto">
-        <span class="font-size-control__label">Tamanho do texto</span>
-        <button type="button" class="fs-btn" id="font-decrease" aria-label="Diminuir tamanho do texto">A-</button>
-        <button type="button" class="fs-btn" id="font-reset" aria-label="Tamanho de texto padrão">A</button>
-        <button type="button" class="fs-btn" id="font-increase" aria-label="Aumentar tamanho do texto">A+</button>
-      </div>
-    </div>
   </header>
 
-  <main class="map-wrap">
+  <main class="page map-wrap" data-page="map">
     <div id="map" role="application" aria-label="Mapa interativo da cidade de Paulista"></div>
 
     <div class="geo-banner" id="geo-banner">
@@ -854,6 +932,101 @@
       </div>
     </section>
   </main>
+
+  <section class="page page-plain" id="page-a11y" data-page="a11y" hidden>
+    <div class="page-inner">
+      <h2>Acessibilidade</h2>
+      <p class="page-lead">Ajuste o Rota Acessível do jeito que funciona melhor para você. As preferências ficam salvas neste navegador.</p>
+
+      <div class="a11y-card">
+        <label class="a11y-toggle" for="wheelchair-toggle">
+          <input type="checkbox" id="wheelchair-toggle">
+          <span class="switch" aria-hidden="true"></span>
+          <span>
+            <strong>Só locais acessíveis</strong>
+            <small>Mostra apenas resultados com acesso para cadeirantes, conforme cadastrado no OpenStreetMap.</small>
+          </span>
+        </label>
+      </div>
+
+      <div class="a11y-card">
+        <label class="a11y-toggle" for="tts-toggle" id="tts-toggle-label">
+          <input type="checkbox" id="tts-toggle">
+          <span class="switch" aria-hidden="true"></span>
+          <span>
+            <strong>🔊 Ler resultados em voz alta</strong>
+            <small>Lê automaticamente os resultados da busca e o local selecionado.</small>
+          </span>
+        </label>
+      </div>
+
+      <div class="a11y-card">
+        <div class="font-size-control" role="group" aria-label="Tamanho do texto">
+          <span class="font-size-control__label">
+            <strong>Tamanho do texto</strong>
+            <small>Aumente ou diminua o tamanho das letras em todo o site.</small>
+          </span>
+          <div class="fs-buttons">
+            <button type="button" class="fs-btn" id="font-decrease" aria-label="Diminuir tamanho do texto">A-</button>
+            <button type="button" class="fs-btn" id="font-reset" aria-label="Tamanho de texto padrão">A</button>
+            <button type="button" class="fs-btn" id="font-increase" aria-label="Aumentar tamanho do texto">A+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="a11y-card a11y-card--info">
+        <strong>🤟 Tradução para Libras</strong>
+        <small>Toque no ícone azul do VLibras, no canto da tela, para traduzir o conteúdo do site para Língua Brasileira de Sinais.</small>
+      </div>
+
+      <div class="a11y-card a11y-card--info">
+        <strong>📍 Reportar obstáculos</strong>
+        <small>Na página do Mapa, use o botão de alerta (▲) para marcar buracos, calçadas quebradas ou falta de rampas — fica salvo neste aparelho.</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="page page-plain" id="page-about" data-page="about" hidden>
+    <div class="page-inner">
+      <h2>Sobre o projeto</h2>
+      <p class="page-lead">O Rota Acessível é um projeto de pesquisa e desenvolvimento voltado à acessibilidade e mobilidade urbana na cidade de Paulista (PE).</p>
+
+      <div class="a11y-card">
+        <strong>Objetivo</strong>
+        <small>Ajudar pessoas com deficiência ou mobilidade reduzida a encontrar, com mais autonomia, ruas, comércios e serviços com acesso adequado, além de sinalizar obstáculos urbanos.</small>
+      </div>
+
+      <div class="a11y-card">
+        <strong>De onde vêm os dados</strong>
+        <small>Ruas, bairros, comércios e informações de acessibilidade vêm do OpenStreetMap, um mapa colaborativo e gratuito. As imagens de satélite são da Esri/Maxar. A cobertura depende do que já foi cadastrado nessas bases.</small>
+      </div>
+
+      <div class="a11y-card">
+        <strong>Privacidade</strong>
+        <small>Sua localização é usada apenas no seu aparelho, para te posicionar no mapa — não é enviada a nenhum servidor nosso. Os obstáculos que você reporta ficam salvos só neste navegador.</small>
+      </div>
+
+      <div class="a11y-card">
+        <strong>Aviso</strong>
+        <small>Este é um projeto acadêmico/experimental, não substitui sinalização oficial, GPS veicular ou orientação de mobilidade profissional.</small>
+      </div>
+    </div>
+  </section>
+
+  <nav class="bottom-nav" aria-label="Navegação principal">
+    <button type="button" class="nav-btn active" data-page="map" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 1114 0c0 4.9-7 11-7 11z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Mapa</span>
+    </button>
+    <button type="button" class="nav-btn" data-page="a11y">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="17" cy="17" r="4.5" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="6" r="1.8" fill="currentColor"/><path d="M10 8.5v4.5l4 2 2.5 6M6 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Acessibilidade</span>
+    </button>
+    <button type="button" class="nav-btn" data-page="about">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Sobre</span>
+    </button>
+  </nav>
 
 </div>
 
@@ -1533,6 +1706,31 @@
   window.addEventListener('appinstalled', function(){
     installBtn.hidden = true;
     announce('Aplicativo instalado com sucesso.');
+  });
+
+  // ---------- Navegação entre páginas (Mapa / Acessibilidade / Sobre) ----------
+  var topbarEl = document.querySelector('.topbar');
+  var pages = document.querySelectorAll('.page');
+  var navButtons = document.querySelectorAll('.nav-btn');
+  var pageLabels = { map:'Mapa', a11y:'Acessibilidade', about:'Sobre o projeto' };
+
+  function setPage(name){
+    pages.forEach(function(p){ p.hidden = (p.dataset.page !== name); });
+    navButtons.forEach(function(btn){
+      var isActive = btn.dataset.page === name;
+      btn.classList.toggle('active', isActive);
+      if(isActive){ btn.setAttribute('aria-current', 'page'); } else { btn.removeAttribute('aria-current'); }
+    });
+    topbarEl.hidden = (name !== 'map');
+    if(name === 'map'){
+      // o mapa pode ter ficado com o tamanho desatualizado enquanto a página estava escondida
+      window.setTimeout(function(){ map.invalidateSize(); }, 50);
+    }
+    announce('Página: ' + pageLabels[name] + '.');
+  }
+
+  navButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){ setPage(btn.dataset.page); });
   });
 
 })();
