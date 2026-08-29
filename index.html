@@ -17,11 +17,14 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
-<!-- Firebase: autenticação (login permanente) + Firestore (dados do perfil) -->
+<!-- Firebase: autenticação (login permanente) + Firestore (dados do perfil) + Storage (fotos de obstáculos) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 <script>
   var firebaseConfig = {
     apiKey: "AIzaSyAORAPzCCwJUEpSh4iOWbLh6LbCLYy9P80",
@@ -36,6 +39,7 @@
   firebase.initializeApp(firebaseConfig);
   var auth = firebase.auth();
   var db = firebase.firestore();
+  var storage = firebase.storage();
   // LOCAL = mantém o usuário logado mesmo fechando o navegador/app (login permanente).
   auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 </script>
@@ -680,6 +684,17 @@
   }
   .result-pin span{ transform:rotate(-45deg); display:block; line-height:1; }
 
+  /* ---------- Agrupamento de marcadores (clusters) ---------- */
+  .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large{
+    background:rgba(27,143,127,0.35);
+  }
+  .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div{
+    background:var(--teal-500);
+    color:#06110F;
+    font-family:var(--font-display);
+    font-weight:700;
+  }
+
 
   .modal-overlay{
     position:fixed; inset:0;
@@ -1026,7 +1041,9 @@
         </select>
         <label for="obstacle-note">Descrição (opcional)</label>
         <textarea id="obstacle-note" rows="3" placeholder="Ex: buraco grande na calçada, difícil de desviar com cadeira de rodas"></textarea>
-        <p class="modal-note">Este aviso fica salvo apenas neste navegador/aparelho — ainda não é compartilhado com outras pessoas.</p>
+        <label for="obstacle-photo">Foto (opcional)</label>
+        <input type="file" id="obstacle-photo" accept="image/*" capture="environment">
+        <p class="modal-note" id="obstacle-modal-note">📢 Este aviso fica visível para todas as pessoas que usarem o app, ajudando a comunidade.</p>
         <div class="actions">
           <button class="btn-small primary" id="obstacle-save">Salvar obstáculo</button>
           <button class="btn-small" id="obstacle-cancel">Cancelar</button>
@@ -1297,6 +1314,7 @@
 </script>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1341,24 +1359,15 @@
   document.getElementById('satellite-btn').addEventListener('click', toggleSatellite);
 
   // ---------- Reportar obstáculos urbanos ----------
-  var OBSTACLES_KEY = 'ra_obstaculos';
   var obstaclesLayer = L.layerGroup().addTo(map);
   var reportBtn = document.getElementById('report-btn');
   var reportHint = document.getElementById('report-hint');
   var obstacleModal = document.getElementById('obstacle-modal');
   var obstacleTypeSelect = document.getElementById('obstacle-type');
   var obstacleNoteInput = document.getElementById('obstacle-note');
+  var obstaclePhotoInput = document.getElementById('obstacle-photo');
   var reportMode = false;
   var pendingLatLng = null;
-
-  function loadObstacles(){
-    try{
-      return JSON.parse(localStorage.getItem(OBSTACLES_KEY) || '[]');
-    }catch(e){ return []; }
-  }
-  function saveObstacles(list){
-    try{ localStorage.setItem(OBSTACLES_KEY, JSON.stringify(list)); }catch(e){}
-  }
 
   var obstacleIcon = L.divIcon({
     className:'',
@@ -1367,29 +1376,64 @@
     iconAnchor:[13,13]
   });
 
-  function addObstacleMarker(obstacle){
+  // ---------- Obstáculos colaborativos: salvos no Firestore, visíveis para todo mundo em tempo real ----------
+  var obstacleMarkersById = {};
+
+  function renderObstacleMarker(id, obstacle){
     var marker = L.marker([obstacle.lat, obstacle.lon], { icon: obstacleIcon }).addTo(obstaclesLayer);
     var popupEl = document.createElement('div');
     popupEl.className = 'obstacle-popup';
+    var dataStr = (obstacle.criadoEm && obstacle.criadoEm.toDate) ? obstacle.criadoEm.toDate().toLocaleDateString('pt-BR') : '';
     popupEl.innerHTML =
       '<h4>⚠ ' + obstacle.type + '</h4>' +
+      (obstacle.photoUrl ? '<img src="' + obstacle.photoUrl + '" alt="Foto do obstáculo" style="width:100%;border-radius:8px;margin-bottom:6px;">' : '') +
       (obstacle.note ? '<p>' + obstacle.note + '</p>' : '') +
-      '<p style="opacity:.7">Reportado em ' + obstacle.date + '</p>';
-    var removeBtn = document.createElement('button');
-    removeBtn.className = 'btn-small';
-    removeBtn.textContent = 'Remover aviso';
-    removeBtn.addEventListener('click', function(){
-      obstaclesLayer.removeLayer(marker);
-      var list = loadObstacles().filter(function(o){ return o.id !== obstacle.id; });
-      saveObstacles(list);
-      announce('Aviso de obstáculo removido.');
+      '<p style="opacity:.7">Reportado em ' + dataStr + (obstacle.naoExisteVotes ? ' · ' + obstacle.naoExisteVotes + ' pessoa(s) disseram que já não existe' : '') + '</p>';
+
+    var votarBtn = document.createElement('button');
+    votarBtn.className = 'btn-small';
+    votarBtn.textContent = 'Não existe mais';
+    votarBtn.addEventListener('click', function(){
+      if(!auth.currentUser){ window.alert('Entre na sua conta para confirmar isso.'); return; }
+      db.collection('obstaculos').doc(id).update({ naoExisteVotes: firebase.firestore.FieldValue.increment(1) }).catch(function(){});
       map.closePopup();
     });
-    popupEl.appendChild(removeBtn);
+    popupEl.appendChild(votarBtn);
+
+    var user = auth.currentUser;
+    if(user && obstacle.criadoPor === user.uid){
+      var removeBtn = document.createElement('button');
+      removeBtn.className = 'btn-small';
+      removeBtn.textContent = 'Remover meu aviso';
+      removeBtn.addEventListener('click', function(){
+        db.collection('obstaculos').doc(id).delete().then(function(){
+          announce('Aviso de obstáculo removido.');
+          map.closePopup();
+        }).catch(function(){ window.alert('Não foi possível remover agora.'); });
+      });
+      popupEl.appendChild(removeBtn);
+    }
     marker.bindPopup(popupEl);
+    return marker;
   }
 
-  loadObstacles().forEach(addObstacleMarker);
+  // Escuta em tempo real: quando alguém (em qualquer aparelho) reporta ou remove um obstáculo, todo mundo vê.
+  db.collection('obstaculos').onSnapshot(function(snap){
+    snap.docChanges().forEach(function(change){
+      var id = change.doc.id;
+      if(change.type === 'removed'){
+        if(obstacleMarkersById[id]){
+          obstaclesLayer.removeLayer(obstacleMarkersById[id]);
+          delete obstacleMarkersById[id];
+        }
+        return;
+      }
+      if(obstacleMarkersById[id]){ obstaclesLayer.removeLayer(obstacleMarkersById[id]); }
+      obstacleMarkersById[id] = renderObstacleMarker(id, change.doc.data());
+    });
+  }, function(){
+    // Se der erro (ex: regras do Firestore ainda não configuradas), o mapa segue funcionando sem os avisos.
+  });
 
   function setReportMode(on){
     reportMode = on;
@@ -1399,6 +1443,10 @@
   }
 
   reportBtn.addEventListener('click', function(){
+    if(!auth.currentUser){
+      window.alert('Entre na sua conta para reportar um obstáculo — assim outras pessoas sabem que o aviso é confiável.');
+      return;
+    }
     setReportMode(!reportMode);
     if(reportMode) announce('Modo de reportar obstáculo ativado. Toque em um ponto do mapa.');
   });
@@ -1409,6 +1457,7 @@
     setReportMode(false);
     obstacleNoteInput.value = '';
     obstacleTypeSelect.selectedIndex = 0;
+    obstaclePhotoInput.value = '';
     obstacleModal.hidden = false;
     obstacleTypeSelect.focus();
   });
@@ -1420,21 +1469,46 @@
 
   document.getElementById('obstacle-save').addEventListener('click', function(){
     if(!pendingLatLng) { obstacleModal.hidden = true; return; }
-    var obstacle = {
-      id: 'obs-' + Date.now(),
+    var user = auth.currentUser;
+    if(!user){
+      window.alert('Entre na sua conta para reportar um obstáculo.');
+      obstacleModal.hidden = true;
+      return;
+    }
+    var saveBtn = document.getElementById('obstacle-save');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Salvando…';
+
+    var novoObstaculo = {
       lat: pendingLatLng.lat,
       lon: pendingLatLng.lng,
       type: obstacleTypeSelect.value,
       note: obstacleNoteInput.value.trim(),
-      date: new Date().toLocaleDateString('pt-BR')
+      criadoPor: user.uid,
+      naoExisteVotes: 0,
+      photoUrl: null,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     };
-    var list = loadObstacles();
-    list.push(obstacle);
-    saveObstacles(list);
-    addObstacleMarker(obstacle);
-    obstacleModal.hidden = true;
-    pendingLatLng = null;
-    announce('Obstáculo salvo no mapa.');
+    var arquivo = obstaclePhotoInput.files && obstaclePhotoInput.files[0];
+
+    db.collection('obstaculos').add(novoObstaculo).then(function(docRef){
+      if(!arquivo) return null;
+      var storageRef = storage.ref().child('obstaculos/' + docRef.id + '.jpg');
+      return storageRef.put(arquivo)
+        .then(function(){ return storageRef.getDownloadURL(); })
+        .then(function(url){ return docRef.update({ photoUrl: url }); })
+        .catch(function(){ /* obstáculo já foi salvo mesmo que a foto falhe */ });
+    }).then(function(){
+      obstacleModal.hidden = true;
+      pendingLatLng = null;
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Salvar obstáculo';
+      announce('Obstáculo salvo e visível para toda a comunidade.');
+    }).catch(function(){
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Salvar obstáculo';
+      window.alert('Não foi possível salvar o obstáculo agora. Verifique sua conexão.');
+    });
   });
 
   // Anima suavemente do Brasil até Paulista ao carregar, situando o usuário geograficamente.
@@ -1447,6 +1521,7 @@
     region.textContent = '';
     window.setTimeout(function(){ region.textContent = msg; }, 60);
   }
+  window.announce = announce;
 
   // ---------- Controle de tamanho de fonte (A- / A+) ----------
   var FONT_SCALE_MIN = 0.85, FONT_SCALE_MAX = 1.45, FONT_SCALE_STEP = 0.1;
@@ -1696,7 +1771,8 @@
     });
   }
 
-  var searchMarkers = L.layerGroup().addTo(map);
+  var searchMarkers = L.markerClusterGroup({ maxClusterRadius: 50, spiderfyOnMaxZoom: true, showCoverageOnHover: false });
+  map.addLayer(searchMarkers);
   var routeLayer = L.layerGroup().addTo(map);
   var bbox = {
     south: PAULISTA_BOUNDS.getSouth(), west: PAULISTA_BOUNDS.getWest(),
@@ -1962,6 +2038,14 @@
         (badgeSel ? '<p>' + badgeSel + '</p>' : '') +
         '<p class="coords">' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '</p>' +
         '<p class="modal-note" id="route-info" hidden></p>' +
+        '<div class="a11y-card" style="margin:10px 0;">' +
+          '<strong>♿ Acessibilidade segundo a comunidade</strong>' +
+          '<small id="a11y-vote-result">Carregando…</small>' +
+          '<div class="actions" style="margin-top:8px;">' +
+            '<button class="btn-small" id="vote-yes">✅ Confirmar acesso</button>' +
+            '<button class="btn-small" id="vote-no">🚫 Sem acesso</button>' +
+          '</div>' +
+        '</div>' +
         '<div class="actions">' +
           '<button class="btn-small primary" id="route-here">Traçar rota até aqui</button>' +
           '<button class="btn-small" id="back-results">Voltar aos resultados</button>' +
@@ -1972,6 +2056,7 @@
 
     if(window.salvarHistoricoLocal) window.salvarHistoricoLocal(item);
     if(window.iniciarBotaoFavorito) window.iniciarBotaoFavorito(item);
+    if(window.iniciarAvaliacaoAcessibilidade) window.iniciarAvaliacaoAcessibilidade(item);
 
     document.getElementById('back-results').addEventListener('click', function(){
       if(lastQuery) lastQuery();
@@ -2308,6 +2393,53 @@
         }).then(function(){ favBtn.textContent = '★ Favoritado'; favBtn.dataset.fav = '1'; }).catch(function(){});
       }
     });
+  };
+
+  // ---------- Avaliação colaborativa de acessibilidade por local ----------
+  function avaliacaoId(lat, lon){ return lat.toFixed(5) + '_' + lon.toFixed(5); }
+
+  function exibirResultadoAvaliacao(doc){
+    var el = document.getElementById('a11y-vote-result');
+    if(!el) return;
+    if(!doc || !doc.exists){ el.textContent = 'Ainda sem avaliações da comunidade — seja a primeira pessoa a avaliar!'; return; }
+    var d = doc.data();
+    var sim = d.simCount || 0, nao = d.naoCount || 0;
+    el.textContent = sim + ' pessoa(s) confirmaram acesso · ' + nao + ' disseram que não há acesso.';
+  }
+
+  window.iniciarAvaliacaoAcessibilidade = function(item){
+    var ref = db.collection('avaliacoes').doc(avaliacaoId(item.lat, item.lon));
+    ref.get().then(exibirResultadoAvaliacao).catch(function(){
+      var el = document.getElementById('a11y-vote-result');
+      if(el) el.textContent = 'Não foi possível carregar as avaliações agora.';
+    });
+
+    function votar(valor){
+      var user = auth.currentUser;
+      if(!user){ window.alert('Entre na sua conta para avaliar a acessibilidade deste local.'); return; }
+      db.runTransaction(function(tx){
+        return tx.get(ref).then(function(doc){
+          var data = doc.exists ? doc.data() : { title: item.title, lat: item.lat, lon: item.lon, simCount: 0, naoCount: 0, votantes: [] };
+          var votantes = data.votantes || [];
+          if(votantes.indexOf(user.uid) !== -1){ throw new Error('ja-votou'); }
+          votantes.push(user.uid);
+          data.votantes = votantes;
+          if(valor === 'sim'){ data.simCount = (data.simCount || 0) + 1; } else { data.naoCount = (data.naoCount || 0) + 1; }
+          tx.set(ref, data);
+        });
+      }).then(function(){
+        ref.get().then(exibirResultadoAvaliacao);
+        if(window.announce) window.announce('Obrigado por avaliar a acessibilidade deste local!');
+      }).catch(function(err){
+        if(err && err.message === 'ja-votou'){ window.alert('Você já avaliou este local.'); }
+        else { window.alert('Não foi possível registrar sua avaliação agora.'); }
+      });
+    }
+
+    var yesBtn = document.getElementById('vote-yes');
+    var noBtn = document.getElementById('vote-no');
+    if(yesBtn) yesBtn.addEventListener('click', function(){ votar('sim'); });
+    if(noBtn) noBtn.addEventListener('click', function(){ votar('nao'); });
   };
 
   // Formata a data de um documento do Firestore de forma curta (ex: "12/08").

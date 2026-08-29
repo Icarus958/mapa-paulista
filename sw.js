@@ -3,7 +3,7 @@
 // rápido e funcionar offline; buscas de lugares (Nominatim/Overpass) e
 // tiles do mapa sempre vão para a rede, pois dependem de dados atuais.
 
-var CACHE_NAME = 'rota-acessivel-paulista-v2';
+var CACHE_NAME = 'rota-acessivel-paulista-v3';
 
 var APP_SHELL = [
   './',
@@ -13,7 +13,14 @@ var APP_SHELL = [
   './icon-512.png',
   './icon-512-maskable.png',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css',
+  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css',
+  'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'
 ];
 
 self.addEventListener('install', function(event){
@@ -44,7 +51,10 @@ self.addEventListener('activate', function(event){
 var NETWORK_ONLY_HOSTS = [
   'nominatim.openstreetmap.org',
   'overpass-api.de',
-  'tile.openstreetmap.org'
+  'tile.openstreetmap.org',
+  'router.project-osrm.org',
+  'googleapis.com',
+  'firebaseapp.com'
 ];
 
 function isNetworkOnly(url){
