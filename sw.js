@@ -3,7 +3,7 @@
 // rápido e funcionar offline; buscas de lugares (Nominatim/Overpass) e
 // tiles do mapa sempre vão para a rede, pois dependem de dados atuais.
 
-var CACHE_NAME = 'rota-acessivel-paulista-v3';
+var CACHE_NAME = 'rota-acessivel-paulista-v4';
 
 var APP_SHELL = [
   './',
@@ -20,7 +20,8 @@ var APP_SHELL = [
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js',
-  'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js'
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js',
+  'https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js'
 ];
 
 self.addEventListener('install', function(event){
@@ -54,7 +55,10 @@ var NETWORK_ONLY_HOSTS = [
   'tile.openstreetmap.org',
   'router.project-osrm.org',
   'googleapis.com',
-  'firebaseapp.com'
+  'firebaseapp.com',
+  'google-analytics.com',
+  'googletagmanager.com',
+  'analytics.google.com'
 ];
 
 function isNetworkOnly(url){

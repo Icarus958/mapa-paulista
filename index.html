@@ -25,6 +25,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
 <script>
   var firebaseConfig = {
     apiKey: "AIzaSyAORAPzCCwJUEpSh4iOWbLh6LbCLYy9P80",
@@ -42,6 +43,22 @@
   var storage = firebase.storage();
   // LOCAL = mantém o usuário logado mesmo fechando o navegador/app (login permanente).
   auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+  // Google Analytics (Firebase Analytics) — mede visitas, buscas e páginas mais usadas.
+  // Fica dentro de try/catch pois o SDK de analytics não funciona em alguns contextos
+  // (ex: file://, alguns navegadores com bloqueador de rastreamento) e isso não pode
+  // quebrar o resto do site.
+  var analytics = null;
+  try{
+    analytics = firebase.analytics();
+  }catch(e){
+    console.warn('Google Analytics não pôde ser iniciado:', e);
+  }
+  // Função central de log — usada pelo resto do app para registrar eventos.
+  window.logEvento = function(nome, parametros){
+    if(!analytics) return;
+    try{ analytics.logEvent(nome, parametros || {}); }catch(e){}
+  };
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -190,12 +207,13 @@
   .auth-form{ display:flex; flex-direction:column; gap:12px; }
   .form-field{ display:flex; flex-direction:column; gap:6px; }
   .form-field span{ font-size:calc(12.5px * var(--font-scale, 1)); font-weight:600; color:var(--sand-100); }
-  .form-field input, .form-field select{
+  .form-field input, .form-field select, .form-field textarea{
     background:var(--ink-700); border:1px solid var(--line); border-radius:var(--radius-sm);
     color:var(--sand-100); font-family:var(--font-body); font-size:calc(14px * var(--font-scale, 1));
     padding:11px 12px;
   }
-  .form-field input:focus, .form-field select:focus{ outline:2px solid var(--focus); outline-offset:1px; }
+  .form-field textarea{ resize:vertical; font-family:inherit; }
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus{ outline:2px solid var(--focus); outline-offset:1px; }
   .btn-block{ width:100%; text-align:center; padding:12px; margin-top:4px; }
 
   /* ---------- Histórico salvo por conta ---------- */
@@ -1066,6 +1084,18 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="ios-install-modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="ios-install-modal-title">
+        <h2 id="ios-install-modal-title">📲 Instalar na tela de início</h2>
+        <p class="modal-note" style="margin-bottom:8px;">1. Toque no ícone de compartilhar <strong>⬆️</strong> na barra do Safari.</p>
+        <p class="modal-note" style="margin-bottom:8px;">2. Escolha a opção <strong>"Adicionar à Tela de Início"</strong>.</p>
+        <p class="modal-note">3. Toque em <strong>"Adicionar"</strong> — pronto, o app fica com ícone próprio, igual instalado.</p>
+        <div class="actions">
+          <button class="btn-small primary btn-block" id="ios-install-close">Entendi</button>
+        </div>
+      </div>
+    </div>
+
     <section class="sheet" id="sheet" aria-label="Resultados da busca">
       <div class="sheet__handle" aria-hidden="true"></div>
       <div class="sheet__head">
@@ -1258,6 +1288,31 @@
         <div class="a11y-card" id="conta-disability-card">
           <strong>Acessibilidade informada</strong>
           <small id="conta-disability-text">—</small>
+          <button type="button" class="btn-small" id="conta-disability-edit-btn" style="margin-top:10px;">✏️ Editar</button>
+
+          <form id="conta-disability-form" class="auth-form" hidden style="margin-top:10px;">
+            <label class="form-field">
+              <span>Você tem alguma deficiência?</span>
+              <select id="conta-disability-select">
+                <option value="Nenhuma">Não</option>
+                <option value="Motora/física">Sim — motora ou física</option>
+                <option value="Visual">Sim — visual</option>
+                <option value="Auditiva">Sim — auditiva</option>
+                <option value="Intelectual ou cognitiva">Sim — intelectual ou cognitiva</option>
+                <option value="Outra">Sim — outra</option>
+                <option value="Prefiro não informar">Prefiro não informar</option>
+              </select>
+            </label>
+            <label class="form-field" id="conta-disability-detail-wrap" hidden>
+              <span>Se quiser, conte um pouco mais (opcional)</span>
+              <input type="text" id="conta-disability-detail-input" placeholder="Ex: uso cadeira de rodas, baixa visão…">
+            </label>
+            <p class="form-msg" id="conta-disability-msg" role="alert"></p>
+            <div class="actions">
+              <button type="submit" class="btn-small primary" id="conta-disability-save">Salvar</button>
+              <button type="button" class="btn-small" id="conta-disability-cancel">Cancelar</button>
+            </div>
+          </form>
         </div>
 
         <div class="a11y-card">
@@ -1847,6 +1902,7 @@
     renderLoading();
     sheetTitle.textContent = 'Resultados para "' + query + '"';
     if(window.salvarHistoricoBusca) window.salvarHistoricoBusca(query.trim());
+    if(window.logEvento) window.logEvento('search', { search_term: query.trim() });
 
     var viewbox = bbox.west + ',' + bbox.north + ',' + bbox.east + ',' + bbox.south;
     var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&limit=12&countrycodes=br'
@@ -1930,6 +1986,7 @@
     openSheet();
     renderLoading('Buscando ' + label.toLowerCase() + ' em Paulista…');
     sheetTitle.textContent = label + ' em Paulista';
+    if(window.logEvento) window.logEvento('search', { search_term: label, tipo: 'categoria' });
 
     var bboxStr = bbox.south + ',' + bbox.west + ',' + bbox.north + ',' + bbox.east;
     var clauses = tagsSpec.split('|').map(function(pair){
@@ -2054,6 +2111,7 @@
     var origem = meMarker.getLatLng();
     var routeBtn = document.getElementById('route-here');
     if(routeBtn){ routeBtn.disabled = true; routeBtn.textContent = 'Calculando rota…'; }
+    if(window.logEvento) window.logEvento('trace_route', { destino: item && item.title });
 
     var url = 'https://router.project-osrm.org/route/v1/foot/' + origem.lng + ',' + origem.lat + ';' + lon + ',' + lat + '?overview=full&geometries=geojson&steps=true';
     fetch(url)
@@ -2170,10 +2228,19 @@
         '<div class="a11y-card" style="margin:10px 0;">' +
           '<strong>♿ Acessibilidade segundo a comunidade</strong>' +
           '<small id="a11y-vote-result">Carregando…</small>' +
+          '<label class="form-field" style="margin-top:10px;">' +
+            '<span>Comentário (opcional)</span>' +
+            '<textarea id="a11y-comment-input" rows="2" placeholder="Ex: tem rampa mas a calçada é estreita"></textarea>' +
+          '</label>' +
+          '<label class="form-field">' +
+            '<span>Foto (opcional)</span>' +
+            '<input type="file" id="a11y-comment-photo" accept="image/*" capture="environment">' +
+          '</label>' +
           '<div class="actions" style="margin-top:8px;">' +
             '<button class="btn-small" id="vote-yes">✅ Confirmar acesso</button>' +
             '<button class="btn-small" id="vote-no">🚫 Sem acesso</button>' +
           '</div>' +
+          '<div id="a11y-comments-list" style="margin-top:10px;"></div>' +
         '</div>' +
         '<div class="actions">' +
           '<button class="btn-small primary" id="route-here">Traçar rota até aqui</button>' +
@@ -2326,23 +2393,47 @@
   var installBtn = document.getElementById('install-btn');
   var deferredInstallPrompt = null;
 
+  // Já está instalado/rodando como app (modo standalone)? Então não faz sentido mostrar o botão.
+  var jaInstalado = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  // Safari no iOS/iPadOS nunca dispara "beforeinstallprompt" — só existe a instalação manual
+  // via "Adicionar à Tela de Início". Detectamos esse caso para mostrar o botão com instruções.
+  var ehIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var ehSafari = /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(navigator.userAgent);
+
+  if(!jaInstalado && ehIOS && ehSafari){
+    installBtn.hidden = false;
+  }
+
   window.addEventListener('beforeinstallprompt', function(event){
     event.preventDefault();
     deferredInstallPrompt = event;
     installBtn.hidden = false;
   });
 
+  var iosInstallModal = document.getElementById('ios-install-modal');
+  document.getElementById('ios-install-close').addEventListener('click', function(){
+    iosInstallModal.hidden = true;
+  });
+
   installBtn.addEventListener('click', function(){
-    if(!deferredInstallPrompt) return;
-    installBtn.hidden = true;
-    deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.then(function(){
-      deferredInstallPrompt = null;
-    });
+    if(window.logEvento) window.logEvento('install_prompt_click');
+    if(deferredInstallPrompt){
+      installBtn.hidden = true;
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then(function(){
+        deferredInstallPrompt = null;
+      });
+      return;
+    }
+    // Sem prompt automático disponível (ex: iOS/Safari): mostra o passo a passo manual.
+    iosInstallModal.hidden = false;
   });
 
   window.addEventListener('appinstalled', function(){
     installBtn.hidden = true;
+    if(window.logEvento) window.logEvento('app_installed');
     announce('Aplicativo instalado com sucesso.');
   });
 
@@ -2368,6 +2459,7 @@
     if(name === 'about' && window.carregarEstatisticas){ window.carregarEstatisticas(); }
     if(name === 'moderacao' && window.renderModeracaoPage){ window.renderModeracaoPage(); }
     announce('Página: ' + pageLabels[name] + '.');
+    if(window.logEvento) window.logEvento('page_view', { page_title: pageLabels[name] || name, page_name: name });
   }
   window.setPage = setPage;
 
@@ -2511,9 +2603,19 @@
   window.salvarHistoricoBusca = function(texto){
     var user = auth.currentUser;
     if(!user || !texto) return;
-    historicoRef(user).add({
-      tipo: 'busca', texto: texto, criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-    }).catch(function(){});
+    // Evita duplicar: se essa mesma busca (sem diferenciar maiúsculas/minúsculas) já está
+    // no histórico, apenas "sobe" ela pra data de hoje em vez de criar uma linha nova.
+    var textoNormalizado = texto.trim().toLowerCase();
+    historicoRef(user).where('tipo', '==', 'busca').where('textoNormalizado', '==', textoNormalizado).limit(1).get()
+      .then(function(snap){
+        if(!snap.empty){
+          return snap.docs[0].ref.update({ criadoEm: firebase.firestore.FieldValue.serverTimestamp() });
+        }
+        return historicoRef(user).add({
+          tipo: 'busca', texto: texto, textoNormalizado: textoNormalizado,
+          criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }).catch(function(){});
   };
   window.salvarHistoricoLocal = function(item){
     var user = auth.currentUser;
@@ -2552,7 +2654,10 @@
         ref.set({
           title: item.title, subtitle: item.subtitle || '', lat: item.lat, lon: item.lon,
           criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(function(){ favBtn.textContent = '★ Favoritado'; favBtn.dataset.fav = '1'; }).catch(function(){});
+        }).then(function(){
+          favBtn.textContent = '★ Favoritado'; favBtn.dataset.fav = '1';
+          if(window.logEvento) window.logEvento('add_favorite', { title: item.title });
+        }).catch(function(){});
       }
     });
   };
@@ -2569,16 +2674,57 @@
     el.textContent = sim + ' pessoa(s) confirmaram acesso · ' + nao + ' disseram que não há acesso.';
   }
 
+  function comentariosRef(ref){ return ref.collection('comentarios'); }
+
+  // Formata a data de um comentário de forma curta (ex: "12/08").
+  function dataCurtaComentario(data){
+    var d = data.criadoEm && data.criadoEm.toDate ? data.criadoEm.toDate() : null;
+    if(!d) return '';
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
+  }
+
+  // Carrega e exibe os últimos comentários da comunidade sobre a acessibilidade do local.
+  function carregarComentariosAvaliacao(ref){
+    var listaEl = document.getElementById('a11y-comments-list');
+    if(!listaEl) return;
+    comentariosRef(ref).orderBy('criadoEm', 'desc').limit(8).get().then(function(snap){
+      if(snap.empty){ listaEl.innerHTML = ''; return; }
+      var html = '';
+      snap.forEach(function(doc){
+        var d = doc.data();
+        var icone = d.voto === 'sim' ? '✅' : '🚫';
+        html += '<div class="a11y-card" style="margin-bottom:8px; padding:10px;">' +
+          '<small style="opacity:.7;">' + icone + ' ' + dataCurtaComentario(d) + '</small>' +
+          (d.comentario ? '<small>' + d.comentario.replace(/</g,'&lt;') + '</small>' : '') +
+          (d.photoUrl ? '<img src="' + d.photoUrl + '" alt="Foto enviada na avaliação" style="width:100%;border-radius:8px;margin-top:6px;">' : '') +
+          '</div>';
+      });
+      listaEl.innerHTML = html;
+    }).catch(function(){});
+  }
+
   window.iniciarAvaliacaoAcessibilidade = function(item){
     var ref = db.collection('avaliacoes').doc(avaliacaoId(item.lat, item.lon));
     ref.get().then(exibirResultadoAvaliacao).catch(function(){
       var el = document.getElementById('a11y-vote-result');
       if(el) el.textContent = 'Não foi possível carregar as avaliações agora.';
     });
+    carregarComentariosAvaliacao(ref);
 
     function votar(valor){
       var user = auth.currentUser;
       if(!user){ window.alert('Entre na sua conta para avaliar a acessibilidade deste local.'); return; }
+
+      var yesBtn = document.getElementById('vote-yes');
+      var noBtn = document.getElementById('vote-no');
+      var comentarioInput = document.getElementById('a11y-comment-input');
+      var fotoInput = document.getElementById('a11y-comment-photo');
+      var comentarioTexto = comentarioInput ? comentarioInput.value.trim() : '';
+      var arquivoFoto = fotoInput && fotoInput.files ? fotoInput.files[0] : null;
+
+      if(yesBtn) yesBtn.disabled = true;
+      if(noBtn) noBtn.disabled = true;
+
       db.runTransaction(function(tx){
         return tx.get(ref).then(function(doc){
           var data = doc.exists ? doc.data() : { title: item.title, lat: item.lat, lon: item.lon, simCount: 0, naoCount: 0, votantes: [] };
@@ -2590,11 +2736,35 @@
           tx.set(ref, data);
         });
       }).then(function(){
+        // Só grava o comentário/foto depois que o voto (que impede votos duplicados) foi aceito.
+        var novoComentario = {
+          voto: valor,
+          comentario: comentarioTexto,
+          autor: user.uid,
+          photoUrl: null,
+          criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        return comentariosRef(ref).add(novoComentario).then(function(docRef){
+          if(!arquivoFoto) return null;
+          var storageRef = storage.ref().child('avaliacoes/' + ref.id + '/' + docRef.id + '.jpg');
+          return storageRef.put(arquivoFoto)
+            .then(function(){ return storageRef.getDownloadURL(); })
+            .then(function(url){ return docRef.update({ photoUrl: url }); })
+            .catch(function(){ /* comentário já foi salvo mesmo que a foto falhe */ });
+        });
+      }).then(function(){
         ref.get().then(exibirResultadoAvaliacao);
+        carregarComentariosAvaliacao(ref);
+        if(comentarioInput) comentarioInput.value = '';
+        if(fotoInput) fotoInput.value = '';
         if(window.announce) window.announce('Obrigado por avaliar a acessibilidade deste local!');
+        if(window.logEvento) window.logEvento('rate_accessibility', { voto: valor, com_comentario: !!comentarioTexto, com_foto: !!arquivoFoto });
       }).catch(function(err){
         if(err && err.message === 'ja-votou'){ window.alert('Você já avaliou este local.'); }
         else { window.alert('Não foi possível registrar sua avaliação agora.'); }
+      }).finally(function(){
+        if(yesBtn) yesBtn.disabled = false;
+        if(noBtn) noBtn.disabled = false;
       });
     }
 
@@ -2825,6 +2995,8 @@
     }
     contaVisitante.hidden = true;
     contaLogada.hidden = false;
+    document.getElementById('conta-disability-form').hidden = true;
+    document.getElementById('conta-disability-edit-btn').hidden = false;
     document.getElementById('conta-username').textContent = user.displayName || 'usuário';
     document.getElementById('conta-email').textContent = user.email || '';
     document.getElementById('verify-email-banner').hidden = !!user.emailVerified;
@@ -2834,9 +3006,75 @@
       var texto = (data.disability && data.disability !== 'Nenhuma') ? data.disability : 'Nenhuma informada';
       if(data.disabilityDetail){ texto += ' — ' + data.disabilityDetail; }
       document.getElementById('conta-disability-text').textContent = texto;
+      // Guarda os valores atuais para preencher o formulário de edição quando ele for aberto.
+      contaDisabilityAtual = {
+        disability: data.disability || 'Nenhuma',
+        disabilityDetail: data.disabilityDetail || ''
+      };
     }).catch(function(){});
     carregarHistoricoEFavoritos(user);
   };
+
+  // ---------- Editar perfil: alterar a necessidade de acessibilidade após criar a conta ----------
+  var contaDisabilityAtual = { disability: 'Nenhuma', disabilityDetail: '' };
+  var contaDisabilityEditBtn = document.getElementById('conta-disability-edit-btn');
+  var contaDisabilityForm = document.getElementById('conta-disability-form');
+  var contaDisabilitySelect = document.getElementById('conta-disability-select');
+  var contaDisabilityDetailWrap = document.getElementById('conta-disability-detail-wrap');
+  var contaDisabilityDetailInput = document.getElementById('conta-disability-detail-input');
+  var contaDisabilityMsg = document.getElementById('conta-disability-msg');
+
+  function atualizarVisibilidadeDetalheConta(){
+    var v = contaDisabilitySelect.value;
+    contaDisabilityDetailWrap.hidden = (v === 'Nenhuma' || v === 'Prefiro não informar');
+  }
+  contaDisabilitySelect.addEventListener('change', atualizarVisibilidadeDetalheConta);
+
+  contaDisabilityEditBtn.addEventListener('click', function(){
+    contaDisabilitySelect.value = contaDisabilityAtual.disability;
+    contaDisabilityDetailInput.value = contaDisabilityAtual.disabilityDetail;
+    atualizarVisibilidadeDetalheConta();
+    contaDisabilityMsg.textContent = '';
+    contaDisabilityForm.hidden = false;
+    contaDisabilityEditBtn.hidden = true;
+    contaDisabilitySelect.focus();
+  });
+
+  document.getElementById('conta-disability-cancel').addEventListener('click', function(){
+    contaDisabilityForm.hidden = true;
+    contaDisabilityEditBtn.hidden = false;
+    contaDisabilityMsg.textContent = '';
+  });
+
+  contaDisabilityForm.addEventListener('submit', function(e){
+    e.preventDefault();
+    var user = auth.currentUser;
+    if(!user) return;
+    var saveBtn = document.getElementById('conta-disability-save');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Salvando…';
+    var novoValor = contaDisabilitySelect.value;
+    var novoDetalhe = contaDisabilityDetailInput.value.trim();
+    db.collection('usuarios').doc(user.uid).set({
+      disability: novoValor,
+      disabilityDetail: novoDetalhe
+    }, { merge: true }).then(function(){
+      contaDisabilityAtual = { disability: novoValor, disabilityDetail: novoDetalhe };
+      var texto = (novoValor && novoValor !== 'Nenhuma') ? novoValor : 'Nenhuma informada';
+      if(novoDetalhe){ texto += ' — ' + novoDetalhe; }
+      document.getElementById('conta-disability-text').textContent = texto;
+      contaDisabilityForm.hidden = true;
+      contaDisabilityEditBtn.hidden = false;
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Salvar';
+      if(window.announce) window.announce('Perfil de acessibilidade atualizado.');
+      if(window.logEvento) window.logEvento('edit_profile', { disability: novoValor });
+    }).catch(function(err){
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Salvar';
+      contaDisabilityMsg.textContent = 'Não foi possível salvar agora. Tente novamente.';
+    });
+  });
 
   // Sempre que o estado de login mudar (entrar/sair/carregar página), atualiza a tela se ela estiver visível.
   auth.onAuthStateChanged(function(){
