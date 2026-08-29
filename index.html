@@ -1157,8 +1157,13 @@
       </div>
 
       <div class="a11y-card">
+        <strong>📊 Números da comunidade</strong>
+        <small id="stats-text">Carregando estatísticas…</small>
+      </div>
+
+      <div class="a11y-card">
         <strong>Privacidade</strong>
-        <small>Sua localização é usada apenas no seu aparelho, para te posicionar no mapa — não é enviada a nenhum servidor nosso. Os obstáculos que você reporta ficam salvos só neste navegador.</small>
+        <small>Sua localização é usada apenas no seu aparelho, para te posicionar no mapa — não é enviada a nenhum servidor nosso. Os obstáculos que você reporta e as avaliações de acessibilidade ficam salvos na nuvem (Firebase) e são visíveis para todas as pessoas que usam o app, para ajudar a comunidade.</small>
       </div>
 
       <div class="a11y-card">
@@ -1175,6 +1180,12 @@
       <div id="conta-visitante">
         <h2>Minha conta</h2>
         <p class="page-lead">Crie uma conta para salvar suas buscas e rotas neste aparelho, e nos contar se você tem alguma necessidade de acessibilidade.</p>
+
+        <button type="button" class="btn-small btn-block" id="google-login-btn" style="margin-bottom:14px; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.2-2.27H12v4.3h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.58-5.17 3.58-8.65z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.16-4.05 1.16-3.11 0-5.75-2.1-6.69-4.93H1.3v3.09C3.26 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.31 14.32c-.24-.72-.38-1.49-.38-2.32s.14-1.6.38-2.32V6.59H1.3A11.97 11.97 0 000 12c0 1.94.46 3.77 1.3 5.41l4.01-3.09z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.94 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.3 6.59l4.01 3.09c.94-2.83 3.58-4.93 6.69-4.93z"/></svg>
+          Continuar com o Google
+        </button>
+        <p class="form-msg" style="text-align:center; opacity:.6; margin:-8px 0 14px;">ou</p>
 
         <div class="auth-tabs" role="tablist" aria-label="Entrar ou criar conta">
           <button type="button" class="auth-tab active" id="tab-login" role="tab" aria-selected="true">Entrar</button>
@@ -1270,10 +1281,21 @@
         </div>
 
         <button type="button" class="btn-small btn-block" id="hist-clear">Limpar meu histórico</button>
+        <button type="button" class="btn-small btn-block" id="admin-panel-btn" hidden style="margin-top:8px;">🛡️ Painel de moderação</button>
         <button type="button" class="btn-small btn-block" id="logout-btn" style="margin-top:8px;">Sair da conta</button>
         <button type="button" class="btn-small btn-block" id="delete-account-btn" style="margin-top:8px; color:#FF8A80; border-color:rgba(255,138,128,0.4);">Excluir minha conta</button>
       </div>
 
+    </div>
+  </section>
+
+  <!-- ---------- Moderação (só visível/funcional para os e-mails de admin) ---------- -->
+  <section class="page page-plain" id="page-moderacao" data-page="moderacao" hidden>
+    <div class="page-inner">
+      <h2>🛡️ Painel de moderação</h2>
+      <p class="page-lead">Obstáculos reportados pela comunidade. Remova avisos incorretos, duplicados ou de spam.</p>
+      <button type="button" class="btn-small" id="moderacao-voltar" style="margin-bottom:14px;">← Voltar para Minha conta</button>
+      <div id="moderacao-lista"><small>Carregando…</small></div>
     </div>
   </section>
 
@@ -1985,7 +2007,7 @@
     var routeBtn = document.getElementById('route-here');
     if(routeBtn){ routeBtn.disabled = true; routeBtn.textContent = 'Calculando rota…'; }
 
-    var url = 'https://router.project-osrm.org/route/v1/foot/' + origem.lng + ',' + origem.lat + ';' + lon + ',' + lat + '?overview=full&geometries=geojson';
+    var url = 'https://router.project-osrm.org/route/v1/foot/' + origem.lng + ',' + origem.lat + ';' + lon + ',' + lat + '?overview=full&geometries=geojson&steps=true';
     fetch(url)
       .then(function(r){ return r.json(); })
       .then(function(data){
@@ -2003,26 +2025,80 @@
         var distanciaKm = (rota.distance / 1000).toFixed(1).replace('.', ',');
         var duracaoMin = Math.max(1, Math.round(rota.duration / 60));
         var infoUrl = 'https://www.openstreetmap.org/directions?from=' + origem.lat + ',' + origem.lng + '&to=' + lat + ',' + lon;
+        var passos = (rota.legs && rota.legs[0] && rota.legs[0].steps) ? rota.legs[0].steps : [];
+        var avisoObstaculo = obstaculoPertoDaRota(coordsLatLng);
+
         var routeInfo = document.getElementById('route-info');
         if(routeInfo){
           routeInfo.hidden = false;
           routeInfo.innerHTML =
             '🚶 ' + distanciaKm + ' km · cerca de ' + duracaoMin + ' min a pé<br>' +
+            (avisoObstaculo ? '<span style="color:var(--coral-400);">⚠️ Esta rota passa perto de ' + avisoObstaculo + ' obstáculo(s) reportado(s) pela comunidade.</span><br>' : '') +
             '<button type="button" class="btn-small" id="clear-route" style="margin-top:8px;">Limpar rota do mapa</button> ' +
+            (ttsSupported && passos.length ? '<button type="button" class="btn-small" id="listen-route" style="margin-top:8px;">🔊 Ler instruções</button> ' : '') +
             '<a class="btn-small" href="' + infoUrl + '" target="_blank" rel="noopener" style="display:inline-block; margin-top:8px;">Abrir no OpenStreetMap</a>';
           document.getElementById('clear-route').addEventListener('click', function(){
             limparRota();
             routeInfo.hidden = true;
             routeInfo.innerHTML = '';
           });
+          var listenBtn = document.getElementById('listen-route');
+          if(listenBtn){
+            listenBtn.addEventListener('click', function(){
+              speak(passos.map(traduzirManobra).join(' '));
+            });
+          }
         }
-        announce('Rota traçada: ' + distanciaKm + ' quilômetros, cerca de ' + duracaoMin + ' minutos a pé.');
+        announce('Rota traçada: ' + distanciaKm + ' quilômetros, cerca de ' + duracaoMin + ' minutos a pé.' + (avisoObstaculo ? ' Atenção: obstáculos reportados no caminho.' : ''));
         if(window.salvarHistoricoRota) window.salvarHistoricoRota(item);
       })
       .catch(function(){
         if(routeBtn){ routeBtn.disabled = false; routeBtn.textContent = 'Traçar rota até aqui'; }
         announce('Não foi possível calcular a rota agora. Verifique sua conexão com a internet.');
       });
+  }
+
+  // Traduz uma manobra de rota do OSRM (formato técnico em inglês) para uma frase simples em português.
+  function traduzirManobra(step){
+    var tipo = step.maneuver.type;
+    var modificador = step.maneuver.modifier;
+    var rua = step.name ? ' na ' + step.name : '';
+    var dist = Math.round(step.distance);
+    var distTexto = dist > 5 ? ' Siga por ' + dist + ' metros.' : '';
+    var modTextos = {
+      'left':'à esquerda', 'right':'à direita', 'straight':'em frente',
+      'slight left':'levemente à esquerda', 'slight right':'levemente à direita',
+      'sharp left':'bem à esquerda', 'sharp right':'bem à direita', 'uturn':'e retorne'
+    };
+    var modTexto = modTextos[modificador] || '';
+
+    switch(tipo){
+      case 'depart': return 'Comece a caminhar' + rua + '.' + distTexto;
+      case 'arrive': return 'Você chegou ao seu destino.';
+      case 'turn': return 'Vire ' + modTexto + rua + '.' + distTexto;
+      case 'continue': return 'Continue ' + modTexto + rua + '.' + distTexto;
+      case 'new name': return 'Continue' + rua + '.' + distTexto;
+      case 'merge': return 'Continue' + rua + '.' + distTexto;
+      case 'roundabout': case 'rotary': return 'Entre na rotatória' + rua + '.' + distTexto;
+      case 'fork': return 'Mantenha-se ' + modTexto + rua + '.' + distTexto;
+      default: return 'Siga ' + modTexto + rua + '.' + distTexto;
+    }
+  }
+
+  // Verifica se algum obstáculo reportado está perto da linha da rota (dentro de ~40 metros de algum ponto).
+  function obstaculoPertoDaRota(coordsLatLng){
+    var ids = Object.keys(obstacleMarkersById);
+    if(!ids.length) return 0;
+    var count = 0;
+    ids.forEach(function(id){
+      var marker = obstacleMarkersById[id];
+      var pOb = marker.getLatLng();
+      var perto = coordsLatLng.some(function(c){
+        return map.distance(pOb, L.latLng(c[0], c[1])) < 40;
+      });
+      if(perto) count++;
+    });
+    return count;
   }
 
   function selectResult(item){
@@ -2236,6 +2312,8 @@
       window.setTimeout(function(){ map.invalidateSize(); }, 50);
     }
     if(name === 'conta' && typeof renderAccountPage === 'function'){ renderAccountPage(); }
+    if(name === 'about' && window.carregarEstatisticas){ window.carregarEstatisticas(); }
+    if(name === 'moderacao' && window.renderModeracaoPage){ window.renderModeracaoPage(); }
     announce('Página: ' + pageLabels[name] + '.');
   }
   window.setPage = setPage;
@@ -2294,7 +2372,10 @@
       'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
       'auth/too-many-requests': 'Muitas tentativas. Aguarde um pouco e tente novamente.',
       'auth/network-request-failed': 'Sem conexão com a internet.',
-      'auth/requires-recent-login': 'Por segurança, saia e entre novamente antes de excluir a conta.'
+      'auth/requires-recent-login': 'Por segurança, saia e entre novamente antes de excluir a conta.',
+      'auth/popup-blocked': 'Seu navegador bloqueou a janela do Google. Permita pop-ups e tente de novo.',
+      'auth/account-exists-with-different-credential': 'Já existe uma conta com esse e-mail usando senha. Entre com e-mail e senha.',
+      'auth/unauthorized-domain': 'Este domínio ainda não está autorizado no Firebase para login com Google.'
     };
     return codigos[err && err.code] || 'Não foi possível concluir. Tente novamente.';
   }
@@ -2310,6 +2391,32 @@
       .catch(function(err){ showAuthMsg(traduzErroFirebase(err)); });
   });
 
+  // ---- Entrar com Google ----
+  document.getElementById('google-login-btn').addEventListener('click', function(){
+    showAuthMsg('Abrindo o login do Google…');
+    var provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider)
+      .then(function(result){
+        showAuthMsg('');
+        var user = result.user;
+        var isNovo = result.additionalUserInfo && result.additionalUserInfo.isNewUser;
+        if(isNovo){
+          // Primeira vez com o Google: cria o perfil básico do usuário no Firestore.
+          return db.collection('usuarios').doc(user.uid).set({
+            username: user.displayName || 'usuário',
+            email: user.email || '',
+            disability: 'Prefiro não informar',
+            disabilityDetail: '',
+            criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+      })
+      .catch(function(err){
+        if(err && err.code === 'auth/popup-closed-by-user') { showAuthMsg(''); return; }
+        showAuthMsg(traduzErroFirebase(err));
+      });
+  });
+
   // ---- Criar conta ----
   signupForm.addEventListener('submit', function(e){
     e.preventDefault();
@@ -2322,7 +2429,9 @@
 
     auth.createUserWithEmailAndPassword(email, senha)
       .then(function(cred){
-        cred.user.sendEmailVerification().catch(function(){});
+        cred.user.sendEmailVerification().catch(function(err){
+          console.error('Falha ao enviar e-mail de verificação:', err);
+        });
         return cred.user.updateProfile({ displayName: username }).then(function(){
           return db.collection('usuarios').doc(cred.user.uid).set({
             username: username,
@@ -2440,6 +2549,86 @@
     var noBtn = document.getElementById('vote-no');
     if(yesBtn) yesBtn.addEventListener('click', function(){ votar('sim'); });
     if(noBtn) noBtn.addEventListener('click', function(){ votar('nao'); });
+  };
+
+  // ---------- Painel de moderação (só para os e-mails de admin) ----------
+  var ADMIN_EMAILS = ['icaroraphael.ir@outlook.com', 'icaroraphael.brtqrz@gmail.com'];
+  function isAdmin(user){
+    return !!(user && user.email && ADMIN_EMAILS.indexOf(user.email.toLowerCase()) !== -1);
+  }
+
+  document.getElementById('admin-panel-btn').addEventListener('click', function(){
+    if(window.setPage) window.setPage('moderacao');
+  });
+  document.getElementById('moderacao-voltar').addEventListener('click', function(){
+    if(window.setPage) window.setPage('conta');
+  });
+
+  window.renderModeracaoPage = function(){
+    var lista = document.getElementById('moderacao-lista');
+    var user = auth.currentUser;
+    if(!isAdmin(user)){
+      lista.innerHTML = '<small>Você não tem acesso a esta página.</small>';
+      return;
+    }
+    lista.innerHTML = '<small>Carregando…</small>';
+    db.collection('obstaculos').orderBy('criadoEm', 'desc').get().then(function(snap){
+      if(snap.empty){ lista.innerHTML = '<small>Nenhum obstáculo reportado ainda.</small>'; return; }
+      lista.innerHTML = '';
+      snap.forEach(function(doc){
+        var d = doc.data();
+        var dataStr = (d.criadoEm && d.criadoEm.toDate) ? d.criadoEm.toDate().toLocaleDateString('pt-BR') : '';
+        var card = document.createElement('div');
+        card.className = 'a11y-card';
+        card.style.marginBottom = '10px';
+        card.innerHTML =
+          '<strong>⚠ ' + d.type + '</strong>' +
+          (d.photoUrl ? '<img src="' + d.photoUrl + '" alt="" style="width:100%;border-radius:8px;margin:6px 0;">' : '') +
+          '<small>' + (d.note || '(sem descrição)') + '</small>' +
+          '<small style="opacity:.7;">Reportado em ' + dataStr + ' · ' + (d.naoExisteVotes || 0) + ' voto(s) de "não existe mais" · lat ' + d.lat.toFixed(5) + ', lon ' + d.lon.toFixed(5) + '</small>';
+        var delBtn = document.createElement('button');
+        delBtn.className = 'btn-small';
+        delBtn.style.marginTop = '8px';
+        delBtn.style.color = '#FF8A80';
+        delBtn.textContent = 'Remover obstáculo';
+        delBtn.addEventListener('click', function(){
+          if(!window.confirm('Remover este obstáculo do mapa para todo mundo?')) return;
+          doc.ref.delete().then(function(){ card.remove(); }).catch(function(){
+            window.alert('Não foi possível remover agora. Confira se as regras do Firestore permitem exclusão por administradores.');
+          });
+        });
+        card.appendChild(delBtn);
+        lista.appendChild(card);
+      });
+    }).catch(function(){
+      lista.innerHTML = '<small>Não foi possível carregar os obstáculos agora.</small>';
+    });
+  };
+
+  // ---------- Estatísticas públicas (página "Sobre") ----------
+  window.carregarEstatisticas = function(){
+    var el = document.getElementById('stats-text');
+    if(!el) return;
+    el.textContent = 'Carregando estatísticas…';
+    Promise.all([
+      db.collection('obstaculos').get(),
+      db.collection('avaliacoes').get()
+    ]).then(function(results){
+      var obstaculosSnap = results[0], avaliacoesSnap = results[1];
+      var totalObstaculos = obstaculosSnap.size;
+      var totalLocaisAvaliados = avaliacoesSnap.size;
+      var totalVotos = 0;
+      avaliacoesSnap.forEach(function(doc){
+        var d = doc.data();
+        totalVotos += (d.simCount || 0) + (d.naoCount || 0);
+      });
+      el.innerHTML =
+        totalObstaculos + ' obstáculo(s) mapeado(s) em Paulista<br>' +
+        totalLocaisAvaliados + ' local(is) avaliado(s) pela comunidade<br>' +
+        totalVotos + ' avaliação(ões) de acessibilidade no total';
+    }).catch(function(){
+      el.textContent = 'Não foi possível carregar as estatísticas agora.';
+    });
   };
 
   // Formata a data de um documento do Firestore de forma curta (ex: "12/08").
@@ -2566,8 +2755,11 @@
     var user = auth.currentUser;
     if(!user) return;
     user.sendEmailVerification()
-      .then(function(){ window.alert('E-mail de confirmação reenviado.'); })
-      .catch(function(){ window.alert('Não foi possível reenviar agora. Tente novamente em instantes.'); });
+      .then(function(){ window.alert('E-mail de confirmação reenviado. Se não aparecer em alguns minutos, confira a caixa de spam/lixo eletrônico.'); })
+      .catch(function(err){
+        console.error('Falha ao reenviar e-mail de verificação:', err);
+        window.alert('Não foi possível reenviar agora: ' + traduzErroFirebase(err));
+      });
   });
 
   // Preenche a página "Minha conta" com os dados do usuário logado.
@@ -2583,6 +2775,7 @@
     document.getElementById('conta-username').textContent = user.displayName || 'usuário';
     document.getElementById('conta-email').textContent = user.email || '';
     document.getElementById('verify-email-banner').hidden = !!user.emailVerified;
+    document.getElementById('admin-panel-btn').hidden = !isAdmin(user);
     db.collection('usuarios').doc(user.uid).get().then(function(doc){
       var data = doc.exists ? doc.data() : {};
       var texto = (data.disability && data.disability !== 'Nenhuma') ? data.disability : 'Nenhuma informada';
