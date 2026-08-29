@@ -202,6 +202,8 @@
     border-top:1px solid var(--line); padding-top:8px;
   }
   .hist-item:first-child{ border-top:none; padding-top:0; }
+  button.hist-item{ background:transparent; border:none; border-top:1px solid var(--line); width:100%; cursor:pointer; font:inherit; }
+  button.hist-item:first-child{ border-top:none; }
   .hist-item .t{ color:var(--sand-100); }
   .hist-item .d{ color:var(--sand-200); opacity:.7; font-size:calc(10.5px * var(--font-scale, 1)); white-space:nowrap; flex:none; }
 
@@ -1198,6 +1200,10 @@
           <small id="conta-disability-text">—</small>
         </div>
 
+        <div class="a11y-card">
+          <strong>⭐ Favoritos</strong>
+          <div id="hist-favoritos" class="hist-list"><small>Nenhum favorito salvo ainda.</small></div>
+        </div>
 
         <div class="a11y-card">
           <strong>🔍 Últimas buscas</strong>
@@ -1708,6 +1714,7 @@
     openSheet();
     renderLoading();
     sheetTitle.textContent = 'Resultados para "' + query + '"';
+    if(window.salvarHistoricoBusca) window.salvarHistoricoBusca(query.trim());
 
     var viewbox = bbox.west + ',' + bbox.north + ',' + bbox.east + ',' + bbox.south;
     var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&limit=12&countrycodes=br'
@@ -1815,8 +1822,12 @@
           '<button class="btn-small primary" id="route-here">Traçar rota até aqui</button>' +
           '<button class="btn-small" id="back-results">Voltar aos resultados</button>' +
           '<button class="btn-small" id="share-place">Compartilhar local</button>' +
+          '<button class="btn-small" id="fav-toggle">☆ Favoritar</button>' +
         '</div>' +
       '</div>';
+
+    if(window.salvarHistoricoLocal) window.salvarHistoricoLocal(item);
+    if(window.iniciarBotaoFavorito) window.iniciarBotaoFavorito(item);
 
     document.getElementById('back-results').addEventListener('click', function(){
       if(lastQuery) lastQuery();
@@ -1825,6 +1836,7 @@
       if(meMarker){
         var url = 'https://www.openstreetmap.org/directions?from=' + meMarker.getLatLng().lat + ',' + meMarker.getLatLng().lng + '&to=' + lat + ',' + lon;
         window.open(url, '_blank', 'noopener');
+        if(window.salvarHistoricoRota) window.salvarHistoricoRota(item);
       } else {
         announce('Ative sua localização primeiro para traçar a rota.');
         showGeoBanner('Ative sua localização para calcular a rota até este local.');
@@ -1848,6 +1860,7 @@
     announce('Local selecionado: ' + item.title);
     setSpeech(item.title + '. ' + item.subtitle + (wLabelSel ? '. ' + wLabelSel + '.' : '.'));
   }
+  window.selectResult = selectResult;
 
   // Se o link foi aberto com ?lat=&lon= (vindo de um compartilhamento), centraliza o mapa lá.
   (function abrirLocalCompartilhado(){
@@ -2003,6 +2016,7 @@
     if(name === 'conta' && typeof renderAccountPage === 'function'){ renderAccountPage(); }
     announce('Página: ' + pageLabels[name] + '.');
   }
+  window.setPage = setPage;
 
   navButtons.forEach(function(btn){
     btn.addEventListener('click', function(){ setPage(btn.dataset.page); });
@@ -2105,6 +2119,134 @@
       .catch(function(err){ showAuthMsg(traduzErroFirebase(err)); });
   });
 
+  // ---------- Histórico e favoritos (Firestore) ----------
+  function historicoRef(user){ return db.collection('usuarios').doc(user.uid).collection('historico'); }
+  function favoritosRef(user){ return db.collection('usuarios').doc(user.uid).collection('favoritos'); }
+  function favDocId(lat, lon){ return lat.toFixed(5) + '_' + lon.toFixed(5); }
+
+  window.salvarHistoricoBusca = function(texto){
+    var user = auth.currentUser;
+    if(!user || !texto) return;
+    historicoRef(user).add({
+      tipo: 'busca', texto: texto, criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(){});
+  };
+  window.salvarHistoricoLocal = function(item){
+    var user = auth.currentUser;
+    if(!user) return;
+    historicoRef(user).add({
+      tipo: 'local', title: item.title, subtitle: item.subtitle || '', lat: item.lat, lon: item.lon,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(){});
+  };
+  window.salvarHistoricoRota = function(item){
+    var user = auth.currentUser;
+    if(!user) return;
+    historicoRef(user).add({
+      tipo: 'rota', title: item.title, lat: item.lat, lon: item.lon,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(function(){});
+  };
+
+  // Liga o botão "Favoritar" de um local exibido no sheet.
+  window.iniciarBotaoFavorito = function(item){
+    var favBtn = document.getElementById('fav-toggle');
+    if(!favBtn) return;
+    var user = auth.currentUser;
+    if(user){
+      favoritosRef(user).doc(favDocId(item.lat, item.lon)).get().then(function(doc){
+        if(doc.exists){ favBtn.textContent = '★ Favoritado'; favBtn.dataset.fav = '1'; }
+      }).catch(function(){});
+    }
+    favBtn.addEventListener('click', function(){
+      var user2 = auth.currentUser;
+      if(!user2){ window.alert('Entre na sua conta para salvar favoritos.'); return; }
+      var ref = favoritosRef(user2).doc(favDocId(item.lat, item.lon));
+      if(favBtn.dataset.fav === '1'){
+        ref.delete().then(function(){ favBtn.textContent = '☆ Favoritar'; favBtn.dataset.fav = ''; }).catch(function(){});
+      } else {
+        ref.set({
+          title: item.title, subtitle: item.subtitle || '', lat: item.lat, lon: item.lon,
+          criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(function(){ favBtn.textContent = '★ Favoritado'; favBtn.dataset.fav = '1'; }).catch(function(){});
+      }
+    });
+  };
+
+  // Formata a data de um documento do Firestore de forma curta (ex: "12/08").
+  function dataCurta(doc){
+    var d = doc.criadoEm && doc.criadoEm.toDate ? doc.criadoEm.toDate() : null;
+    if(!d) return '';
+    return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
+  }
+
+  function irParaLocalDoHistorico(dados){
+    if(window.setPage) window.setPage('map');
+    if(typeof window.selectResult === 'function'){
+      window.setTimeout(function(){
+        window.selectResult({ lat: dados.lat, lon: dados.lon, title: dados.title, subtitle: dados.subtitle || '', wheelchair: null });
+      }, 60);
+    }
+  }
+
+  // Preenche os cards de favoritos e histórico na página "Minha conta".
+  function carregarHistoricoEFavoritos(user){
+    favoritosRef(user).orderBy('criadoEm', 'desc').limit(15).get().then(function(snap){
+      var el = document.getElementById('hist-favoritos');
+      if(snap.empty){ el.innerHTML = '<small>Nenhum favorito salvo ainda.</small>'; return; }
+      el.innerHTML = '';
+      snap.forEach(function(doc){
+        var d = doc.data();
+        var b = document.createElement('button');
+        b.className = 'hist-item';
+        b.innerHTML = '<span class="t">⭐ ' + d.title + '</span><span class="d">' + dataCurta(d) + '</span>';
+        b.addEventListener('click', function(){ irParaLocalDoHistorico(d); });
+        el.appendChild(b);
+      });
+    }).catch(function(){});
+
+    historicoRef(user).where('tipo', '==', 'busca').orderBy('criadoEm', 'desc').limit(10).get().then(function(snap){
+      var el = document.getElementById('hist-buscas');
+      if(snap.empty){ el.innerHTML = '<small>Nenhuma busca salva ainda.</small>'; return; }
+      el.innerHTML = '';
+      snap.forEach(function(doc){
+        var d = doc.data();
+        var div = document.createElement('div');
+        div.className = 'hist-item';
+        div.innerHTML = '<span class="t">' + d.texto + '</span><span class="d">' + dataCurta(d) + '</span>';
+        el.appendChild(div);
+      });
+    }).catch(function(){});
+
+    historicoRef(user).where('tipo', '==', 'local').orderBy('criadoEm', 'desc').limit(10).get().then(function(snap){
+      var el = document.getElementById('hist-locais');
+      if(snap.empty){ el.innerHTML = '<small>Nenhum local salvo ainda.</small>'; return; }
+      el.innerHTML = '';
+      snap.forEach(function(doc){
+        var d = doc.data();
+        var b = document.createElement('button');
+        b.className = 'hist-item';
+        b.innerHTML = '<span class="t">📍 ' + d.title + '</span><span class="d">' + dataCurta(d) + '</span>';
+        b.addEventListener('click', function(){ irParaLocalDoHistorico(d); });
+        el.appendChild(b);
+      });
+    }).catch(function(){});
+
+    historicoRef(user).where('tipo', '==', 'rota').orderBy('criadoEm', 'desc').limit(10).get().then(function(snap){
+      var el = document.getElementById('hist-rotas');
+      if(snap.empty){ el.innerHTML = '<small>Nenhuma rota salva ainda.</small>'; return; }
+      el.innerHTML = '';
+      snap.forEach(function(doc){
+        var d = doc.data();
+        var b = document.createElement('button');
+        b.className = 'hist-item';
+        b.innerHTML = '<span class="t">🧭 até ' + d.title + '</span><span class="d">' + dataCurta(d) + '</span>';
+        b.addEventListener('click', function(){ irParaLocalDoHistorico(d); });
+        el.appendChild(b);
+      });
+    }).catch(function(){});
+  }
+
   // ---- Sair ----
   document.getElementById('logout-btn').addEventListener('click', function(){
     auth.signOut();
@@ -2119,11 +2261,22 @@
     user.delete().catch(function(err){ window.alert(traduzErroFirebase(err)); });
   });
 
-  // ---- Limpar histórico exibido na tela (o histórico ainda não é salvo na nuvem) ----
+  // ---- Limpar meu histórico (apaga de verdade no Firestore; favoritos não são apagados aqui) ----
   document.getElementById('hist-clear').addEventListener('click', function(){
-    document.getElementById('hist-buscas').innerHTML = '<small>Nenhuma busca salva ainda.</small>';
-    document.getElementById('hist-locais').innerHTML = '<small>Nenhum local salvo ainda.</small>';
-    document.getElementById('hist-rotas').innerHTML = '<small>Nenhuma rota salva ainda.</small>';
+    var user = auth.currentUser;
+    if(!user) return;
+    if(!window.confirm('Apagar todo o seu histórico de buscas, locais e rotas?')) return;
+    historicoRef(user).get().then(function(snap){
+      var batch = db.batch();
+      snap.forEach(function(doc){ batch.delete(doc.ref); });
+      return batch.commit();
+    }).then(function(){
+      document.getElementById('hist-buscas').innerHTML = '<small>Nenhuma busca salva ainda.</small>';
+      document.getElementById('hist-locais').innerHTML = '<small>Nenhum local salvo ainda.</small>';
+      document.getElementById('hist-rotas').innerHTML = '<small>Nenhuma rota salva ainda.</small>';
+    }).catch(function(){
+      window.alert('Não foi possível limpar o histórico agora. Tente novamente.');
+    });
   });
 
   // ---- Esqueci minha senha ----
@@ -2167,6 +2320,7 @@
       if(data.disabilityDetail){ texto += ' — ' + data.disabilityDetail; }
       document.getElementById('conta-disability-text').textContent = texto;
     }).catch(function(){});
+    carregarHistoricoEFavoritos(user);
   };
 
   // Sempre que o estado de login mudar (entrar/sair/carregar página), atualiza a tela se ela estiver visível.
