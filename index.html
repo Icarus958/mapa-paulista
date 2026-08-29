@@ -1632,6 +1632,7 @@
   function handleFix(pos, isFirstFix){
     var lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
     placeMe(lat, lng, acc);
+    verificarProgressoNavegacao(lat, lng);
 
     var isImprovement = (bestAccuracy === null) || (acc < bestAccuracy);
     if(isImprovement) bestAccuracy = acc;
@@ -1992,6 +1993,53 @@
 
   var lastQuery = null; // guarda a última busca (texto ou categoria) para o botão "voltar"
 
+  // ---------- Navegação por voz ao vivo: fala o próximo passo conforme a pessoa anda ----------
+  var navegacaoAtiva = false;
+  var navPassos = [];
+  var navIndiceAtual = 0;
+
+  function atualizarBotaoNavegacao(){
+    var btn = document.getElementById('follow-route-btn');
+    if(!btn) return;
+    btn.textContent = navegacaoAtiva ? '⏹ Parar navegação por voz' : '▶️ Seguir rota (por voz)';
+  }
+
+  function iniciarNavegacao(passos){
+    if(!passos.length) return;
+    navPassos = passos;
+    navIndiceAtual = 0;
+    navegacaoAtiva = true;
+    atualizarBotaoNavegacao();
+    speak(traduzirManobra(navPassos[0]));
+    announce('Navegação por voz iniciada. Vou avisando o próximo passo conforme você se aproximar.');
+  }
+
+  function pararNavegacao(){
+    if(!navegacaoAtiva) return;
+    navegacaoAtiva = false;
+    navPassos = [];
+    navIndiceAtual = 0;
+    atualizarBotaoNavegacao();
+    announce('Navegação por voz encerrada.');
+  }
+
+  // Chamado toda vez que chega uma nova leitura de localização (dentro de handleFix).
+  function verificarProgressoNavegacao(lat, lng){
+    if(!navegacaoAtiva) return;
+    var proximoIndice = navIndiceAtual + 1;
+    if(proximoIndice >= navPassos.length){ pararNavegacao(); return; }
+    var proximoPasso = navPassos[proximoIndice];
+    var alvo = L.latLng(proximoPasso.maneuver.location[1], proximoPasso.maneuver.location[0]);
+    var dist = map.distance(L.latLng(lat, lng), alvo);
+    if(dist < 25){
+      navIndiceAtual = proximoIndice;
+      speak(traduzirManobra(proximoPasso));
+      if(proximoPasso.maneuver.type === 'arrive'){
+        window.setTimeout(pararNavegacao, 4000);
+      }
+    }
+  }
+
   // ---------- Rota a pé traçada dentro do próprio mapa (OSRM) ----------
   function limparRota(){
     routeLayer.clearLayers();
@@ -2035,17 +2083,22 @@
             '🚶 ' + distanciaKm + ' km · cerca de ' + duracaoMin + ' min a pé<br>' +
             (avisoObstaculo ? '<span style="color:var(--coral-400);">⚠️ Esta rota passa perto de ' + avisoObstaculo + ' obstáculo(s) reportado(s) pela comunidade.</span><br>' : '') +
             '<button type="button" class="btn-small" id="clear-route" style="margin-top:8px;">Limpar rota do mapa</button> ' +
-            (ttsSupported && passos.length ? '<button type="button" class="btn-small" id="listen-route" style="margin-top:8px;">🔊 Ler instruções</button> ' : '') +
+            (ttsSupported && passos.length ? '<button type="button" class="btn-small primary" id="follow-route-btn" style="margin-top:8px;">▶️ Seguir rota (por voz)</button> ' : '') +
             '<a class="btn-small" href="' + infoUrl + '" target="_blank" rel="noopener" style="display:inline-block; margin-top:8px;">Abrir no OpenStreetMap</a>';
           document.getElementById('clear-route').addEventListener('click', function(){
+            pararNavegacao();
             limparRota();
             routeInfo.hidden = true;
             routeInfo.innerHTML = '';
           });
-          var listenBtn = document.getElementById('listen-route');
-          if(listenBtn){
-            listenBtn.addEventListener('click', function(){
-              speak(passos.map(traduzirManobra).join(' '));
+          var followBtn = document.getElementById('follow-route-btn');
+          if(followBtn){
+            followBtn.addEventListener('click', function(){
+              if(navegacaoAtiva){
+                pararNavegacao();
+              } else {
+                iniciarNavegacao(passos);
+              }
             });
           }
         }
